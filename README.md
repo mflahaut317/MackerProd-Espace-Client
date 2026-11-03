@@ -13,8 +13,8 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
    et ajoute-la dans *Redirect URLs* (ex. `https://espace.mackerprod.fr/`).
 
 ### 2. Hébergement (Cloudflare Pages, gratuit)
-1. Sur https://pages.cloudflare.com, **Create a project > Connect to Git**, choisis ce dépôt.
-2. Aucun build : *Framework preset* = None, *Build output directory* = `/`.
+1. Tableau de bord Cloudflare : **Create app > Pages > Import an existing Git repository**, choisis ce dépôt.
+2. Aucun build : *Framework preset* = None, *Build command* et *Build output directory* vides.
 3. Optionnel : ajoute un sous-domaine, par exemple `espace.mackerprod.fr`.
 
 ### 3. Te donner le rôle admin
