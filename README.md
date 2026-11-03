@@ -9,7 +9,9 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 1. Crée un compte sur https://supabase.com puis **New project** (région : Paris / eu-west-3).
 2. Ouvre **SQL Editor > New query**, colle le contenu de `supabase/schema.sql`, puis **Run**.
    Fais de même avec `supabase/02_etape2.sql` (messages, fichiers, fiche de lancement)
-   puis `supabase/03_etape3.sql` (commentaires horodatés et validation).
+   puis `supabase/03_etape3.sql` (commentaires horodatés et validation),
+   `supabase/04_etape4_alertes.sql`, `supabase/04_etape4_cron.sql` et `supabase/05_securite.sql`.
+   (Déjà fait sur le projet Mackerprod.)
 3. Dans **Project Settings > API**, copie la *Project URL* et la clé *anon public* dans `config.js`.
 4. Dans **Authentication > URL Configuration**, mets l'adresse de ton site dans *Site URL*
    et ajoute-la dans *Redirect URLs* (ex. `https://espace.mackerprod.fr/`).
@@ -38,6 +40,19 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
   et un clic sur l'instant y ramène la vidéo. Vidéo Google Drive : il note l'instant à la main.
   Maquette (image PNG/JPG/WebP ou image Drive) : il clique à l'endroit voulu, une épingle numérotée s'affiche.
   Tu coches « Traité » sur chaque retour ; le client peut valider la version.
+- **Export** : le client télécharge tout son dossier (coordonnées, projets, liens, échanges, validations)
+  en un fichier lisible hors ligne. Tu peux aussi l'exporter depuis la page projet.
+
+### 4. Alertes e-mail (Resend, gratuit jusqu'à 3 000 e-mails/mois)
+Chaque événement (message, retour sur vidéo/maquette, validation, nouvelle version, étape suivante)
+est mis en file d'attente. Toutes les 5 minutes, la fonction `envoyer-notifications` envoie un e-mail
+par destinataire qui regroupe tout. Si un message client attend depuis 20 h, tu reçois un rappel.
+1. Crée un compte sur https://resend.com et ajoute ton domaine (ex. `mackerprod.fr`) dans **Domains** :
+   copie les enregistrements DNS chez ton hébergeur de domaine, puis attends la vérification.
+2. Crée une clé dans **API Keys**.
+3. Dans Supabase **Edge Functions > Secrets**, ajoute `RESEND_API_KEY` (la clé) et
+   `EMAIL_FROM` (ex. `Mackerprod <notifications@mackerprod.fr>`).
+Tant que la clé n'est pas là, les alertes restent en attente et partiront dès qu'elle sera ajoutée.
 
 ## Limites de l'offre gratuite Supabase à connaître
 - Un projet inactif pendant 7 jours est mis en pause. Il se relance en un clic depuis le tableau de bord Supabase.
@@ -51,3 +66,5 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 - `supabase/schema.sql` : tables, 7 étapes automatiques et droits d'accès (chaque client ne voit que son dossier).
 - `supabase/02_etape2.sql` : fiche de lancement, fichiers (liens) et messages.
 - `supabase/03_etape3.sql` : retours horodatés ou épinglés, et validation.
+- `supabase/04_etape4_*.sql`, `supabase/functions/envoyer-notifications/` : alertes e-mail et rappel 20 h.
+- `supabase/05_securite.sql` : durcissement des droits sur les fonctions.

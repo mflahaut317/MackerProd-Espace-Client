@@ -197,7 +197,16 @@ async function renderClient(clientId) {
       <p class="label">Vos coordonnées</p>
       <p class="panel-intro">À remplir une seule fois : Mackerprod les réutilise pour tous vos projets.</p>
       ${formHtml('fiche', CHAMPS_FICHE, fiche, ['notes', 'Remarques'])}
+    </section>
+
+    <section class="section">
+      <p class="label">Vos données</p>
+      <div class="card export">
+        <p>Téléchargez à tout moment l’intégralité de votre dossier : coordonnées, projets, liens vers vos fichiers, échanges et validations. Tout vous appartient.</p>
+        <div class="form-foot"><button class="btn btn-line" id="exporter">Télécharger mon dossier</button></div>
+      </div>
     </section>`;
+  document.getElementById('exporter').onclick = () => exporterDossier(clientId);
   bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', clientId), () => renderClient(clientId));
 }
 
@@ -298,7 +307,8 @@ async function renderProjet(id, onglet) {
         ${parcoursHtml(p.etapes, admin, p.id)}
       </div>
       ${admin && p.clients ? `<div class="section"><p class="label">Contact</p>
-        <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p></div>` : ''}
+        <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p>
+        <div class="form-foot"><button class="btn btn-line btn-sm" id="exporter">Exporter le dossier du client</button></div></div>` : ''}
     </section>
 
     <section class="panel" data-panel="messages">
@@ -362,6 +372,7 @@ async function renderProjet(id, onglet) {
   }));
   montrer(actif);
 
+  if (admin && document.getElementById('exporter')) document.getElementById('exporter').onclick = () => exporterDossier(p.client_id);
   if (admin) {
     app.querySelectorAll('select[data-projet]').forEach((s) => (s.onchange = async () => {
       const { error } = await sb.from('etapes').update({ statut: s.value })
@@ -709,4 +720,42 @@ async function renderRevue(projetId, fichierId) {
     if (error) return alert(error.message);
     renderRevue(projetId, fichierId);
   };
+}
+
+// Export complet du dossier (étape 4) -------------------------------------------
+// Le client récupère tout en un fichier lisible hors ligne : rien n'est enfermé ici.
+
+async function exporterDossier(clientId) {
+  const [{ data: c, error }, { data: projets }] = await Promise.all([
+    sb.from('clients').select('*').eq('id', clientId).single(),
+    sb.from('projets').select('*, etapes(*), lancements(*), fichiers(*), messages(*), retours(*)').eq('client_id', clientId).order('created_at'),
+  ]);
+  if (error) return alert(error.message);
+  const ligne = (l, v) => rempli(v) ? `<tr><th>${esc(l)}</th><td>${esc(v).replace(/\n/g, '<br>')}</td></tr>` : '';
+  const date = (d) => new Date(d).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
+  const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<title>Dossier ${esc(c.nom || c.email)} · Mackerprod</title>
+<style>body{font:15px/1.6 Georgia,serif;max-width:820px;margin:40px auto;padding:0 16px;color:#1a2026}
+h1,h2,h3{font-weight:400}h2{border-bottom:2px solid #941e28;padding-bottom:6px;margin-top:48px}
+table{border-collapse:collapse;width:100%}th{text-align:left;width:34%;color:#6b6a66;font-weight:400;vertical-align:top;padding:4px 12px 4px 0}
+td{padding:4px 0}li{margin:6px 0}.m{border-left:3px solid #c9a27a;padding:6px 12px;margin:10px 0}.muted{color:#6b6a66}</style></head><body>
+<p class="muted">Dossier exporté le ${date(new Date())} depuis l’espace client Mackerprod. Ces informations et ces fichiers vous appartiennent.</p>
+<h1>${esc(c.nom || c.email)}${c.entreprise ? ` · ${esc(c.entreprise)}` : ''}</h1>
+<h2>Coordonnées</h2><table>${ligne('E-mail', c.email)}${CHAMPS_FICHE.map(([k, l]) => ligne(l, c[k])).join('')}${ligne('Remarques', c.notes)}</table>
+${(projets ?? []).map((p) => {
+  const lanc = Array.isArray(p.lancements) ? p.lancements[0] : p.lancements;
+  return `<h2>Projet : ${esc(p.titre)}</h2>
+  <h3>Avancement</h3><ol>${tri(p.etapes).map((e) => `<li>${esc(ETAPES[e.numero]?.titre)} : ${STATUTS[e.statut]}</li>`).join('')}</ol>
+  ${lanc ? `<h3>Fiche de lancement</h3><table>${CHAMPS_LANCEMENT.map(([k, l]) => ligne(l, lanc[k])).join('')}</table>` : ''}
+  <h3>Fichiers</h3>${p.fichiers?.length ? `<ul>${p.fichiers.map((f) => `<li>[${CATEGORIES[f.categorie]}] <a href="${esc(f.url)}">${esc(f.titre)}</a> <span class="muted">${esc(f.url)}</span>
+    ${(p.retours ?? []).filter((r) => r.fichier_id === f.id).map((r) => `<div class="m">${r.type === 'validation' ? `✓ Validé le ${date(r.created_at)}`
+      : `${r.temps_sec != null ? `<b>${fmtTemps(r.temps_sec)}</b> · ` : ''}${r.par_admin ? 'Mackerprod' : 'Client'} : ${esc(r.contenu)}${r.traite ? ' <span class="muted">(traité)</span>' : ''}`}</div>`).join('')}</li>`).join('')}</ul>` : '<p class="muted">Aucun fichier.</p>'}
+  <h3>Messages</h3>${(p.messages ?? []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)).map((m) =>
+    `<div class="m"><span class="muted">${m.par_admin ? 'Mackerprod' : 'Client'} · ${date(m.created_at)}</span><br>${esc(m.contenu).replace(/\n/g, '<br>')}</div>`).join('') || '<p class="muted">Aucun message.</p>'}`;
+}).join('')}
+</body></html>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = `dossier-mackerprod-${(c.nom || c.email).toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-')}.html`;
+  document.body.appendChild(a); a.click(); a.remove();
 }
