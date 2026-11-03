@@ -37,6 +37,7 @@ const CHAMPS_LANCEMENT = [
   ['dates_tournage', 'Dates possibles pour le tournage'],
   ['contraintes', 'Contraintes', 'Délais, accès, horaires, budget…'],
 ];
+const REVUE = ['video', 'maquette'];
 const CATEGORIES = { video: 'Vidéo', photo: 'Photo', document: 'Document', maquette: 'Maquette', autre: 'Autre' };
 
 // Outils -----------------------------------------------------------------------
@@ -86,6 +87,8 @@ async function demarrer(session) {
 
 function router() {
   window.scrollTo(0, 0);
+  const r = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/revue\/([0-9a-f-]{36})$/);
+  if (r) return renderRevue(r[1], r[2]);
   const m = location.hash.match(/^#\/projet\/([0-9a-f-]{36})(?:\/(\w+))?$/);
   if (m) return renderProjet(m[1], m[2]);
   if (profil.role === 'admin') return renderAdmin();
@@ -136,17 +139,24 @@ function renderLogin() {
 // Accueil client ---------------------------------------------------------------
 
 async function renderClient(clientId) {
-  const [{ data: fiche, error }, { data: projets }, { data: lancements }, { data: messages }] = await Promise.all([
+  const [{ data: fiche, error }, { data: projets }, { data: lancements }, { data: messages }, { data: fichiers }, { data: retours }] = await Promise.all([
     sb.from('clients').select('*').eq('id', clientId).single(),
     sb.from('projets').select('*, etapes(*)').eq('client_id', clientId).order('created_at'),
     sb.from('lancements').select('projet_id, objectifs'),
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(200),
+    sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin').in('categorie', ['video', 'maquette']),
+    sb.from('retours').select('fichier_id, type'),
   ]);
   if (error) return showError(error);
 
   // Ce que le client doit faire maintenant, du plus important au moins important.
   const todo = [];
   for (const p of projets ?? []) {
+    for (const f of (fichiers ?? []).filter((x) => x.projet_id === p.id && x.par_admin)) {
+      if (!(retours ?? []).some((r) => r.fichier_id === f.id && r.type === 'validation')) {
+        todo.push({ href: `#/projet/${p.id}/revue/${f.id}`, titre: `Donner votre avis sur « ${f.titre} »`, sub: `${p.titre} · commentez puis validez` });
+      }
+    }
     const m = dernierMessage(messages, p.id);
     if (m?.par_admin) todo.push({ href: `#/projet/${p.id}/messages`, titre: 'Nouveau message de Mackerprod', sub: `${p.titre} · ${dateFr(m.created_at)}` });
     const e = etapeCourante(p.etapes);
@@ -243,6 +253,11 @@ async function renderProjet(id, onglet) {
     sb.from('messages').select('*').eq('projet_id', id).order('created_at'),
   ]);
   if (error) return showError(error);
+  const { data: retours } = await sb.from('retours').select('fichier_id, type, traite, created_at').eq('projet_id', id);
+  const revueInfo = (fid) => {
+    const rs = (retours ?? []).filter((r) => r.fichier_id === fid);
+    return { aTraiter: rs.filter((r) => !r.traite).length, valide: rs.find((r) => r.type === 'validation') };
+  };
 
   const e = etapeCourante(p.etapes);
   const info = ETAPES[e?.numero] ?? {};
@@ -252,7 +267,7 @@ async function renderProjet(id, onglet) {
   const onglets = [
     ['avancement', 'Avancement'],
     ['messages', 'Messages', messages?.length, attendReponse],
-    ['fichiers', 'Fichiers', fichiers?.length],
+    ['fichiers', 'Fichiers', fichiers?.length, admin && (retours ?? []).some((r) => !r.traite)],
     ['lancement', 'Fiche de lancement', null, lancementVide && e?.numero >= 3],
   ];
   const actif = onglets.some(([k]) => k === onglet) ? onglet : 'avancement';
@@ -304,11 +319,15 @@ async function renderProjet(id, onglet) {
     </section>
 
     <section class="panel" data-panel="fichiers">
-      <p class="panel-intro">Vos fichiers restent où vous les avez mis (Google Drive, WeTransfer, Vimeo…). Ici, on garde seulement les liens pour tout retrouver.</p>
+      <p class="panel-intro">Vos fichiers restent où vous les avez mis (Google Drive, WeTransfer, Vimeo…). Ici, on garde seulement les liens pour tout retrouver. Les vidéos et maquettes se commentent directement : à la seconde près pour une vidéo, à l’endroit précis pour une maquette.</p>
       <ul class="fichiers">${(fichiers ?? []).map((f) => `
         <li><span class="tag">${CATEGORIES[f.categorie]}</span>
           <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.titre)}</a>
           <span class="meta">${f.par_admin ? 'Mackerprod' : esc(nomClient)} · ${dateFr(f.created_at)}</span>
+          ${REVUE.includes(f.categorie) ? (() => { const ri = revueInfo(f.id); return `
+            ${ri.valide ? '<span class="badge ok">Validé</span>' : ''}
+            ${admin && ri.aTraiter ? `<span class="badge red">${ri.aTraiter} retour${ri.aTraiter > 1 ? 's' : ''} à traiter</span>` : ''}
+            <a class="btn btn-line btn-sm" href="#/projet/${id}/revue/${f.id}">${admin ? 'Voir les retours' : ri.valide ? 'Revoir' : 'Commenter et valider'} →</a>`; })() : ''}
           ${admin || f.ajoute_par === profil.id ? `<button class="btn-txt" data-suppr="${f.id}">Retirer</button>` : ''}
         </li>`).join('') || '<li><span class="empty">Aucun fichier pour l’instant.</span></li>'}
       </ul>
@@ -382,26 +401,30 @@ async function renderProjet(id, onglet) {
 // Tableau de bord admin (Maxence) ---------------------------------------------
 
 async function renderAdmin() {
-  const [{ data: clients, error }, { data: messages }] = await Promise.all([
+  const [{ data: clients, error }, { data: messages }, { data: retours }] = await Promise.all([
     sb.from('clients').select('*, projets(*, etapes(*))').order('created_at', { ascending: false }),
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(500),
+    sb.from('retours').select('projet_id').eq('traite', false),
   ]);
+  const nbRetours = (pid) => (retours ?? []).filter((r) => r.projet_id === pid).length;
   if (error) return showError(error);
 
   const lignes = (clients ?? []).flatMap((c) => (c.projets ?? []).map((p) => {
     const m = dernierMessage(messages, p.id);
-    return { c, p, e: etapeCourante(p.etapes), m, aRepondre: m && !m.par_admin };
-  })).sort((a, b) => (b.aRepondre - a.aRepondre) || (new Date(b.m?.created_at ?? 0) - new Date(a.m?.created_at ?? 0)));
+    return { c, p, e: etapeCourante(p.etapes), m, aRepondre: m && !m.par_admin, retours: nbRetours(p.id) };
+  })).sort((a, b) => ((b.aRepondre || b.retours > 0) - (a.aRepondre || a.retours > 0)) || (new Date(b.m?.created_at ?? 0) - new Date(a.m?.created_at ?? 0)));
   const sansProjet = (clients ?? []).filter((c) => !c.projets?.length);
   const nbRepondre = lignes.filter((l) => l.aRepondre).length;
+  const totalRetours = (retours ?? []).length;
   const nbActifs = lignes.filter((l) => l.e?.statut !== 'termine').length;
 
   app.innerHTML = `
     <p class="label rule">Administration</p>
     <h1 class="h-l">Tableau de <em>bord</em></h1>
 
-    <div class="stats">
+    <div class="stats stats-4">
       <div><strong class="${nbRepondre ? 'red' : ''}">${nbRepondre}</strong><span>message${nbRepondre > 1 ? 's' : ''} client en attente de réponse</span></div>
+      <div><strong class="${totalRetours ? 'red' : ''}">${totalRetours}</strong><span>retour${totalRetours > 1 ? 's' : ''} sur vidéo ou maquette à traiter</span></div>
       <div><strong>${nbActifs}</strong><span>projet${nbActifs > 1 ? 's' : ''} en cours</span></div>
       <div><strong>${clients?.length ?? 0}</strong><span>client${(clients?.length ?? 0) > 1 ? 's' : ''}</span></div>
     </div>
@@ -410,13 +433,13 @@ async function renderAdmin() {
       <p class="label">Projets</p>
       ${lignes.length ? `<table class="table">
         <thead><tr><th>Client</th><th>Projet</th><th>Étape</th><th>Dernier message</th><th></th></tr></thead>
-        <tbody>${lignes.map(({ c, p, e, m, aRepondre }) => `
+        <tbody>${lignes.map(({ c, p, e, m, aRepondre, retours: nr }) => `
           <tr class="lien" data-href="#/projet/${p.id}${aRepondre ? '/messages' : ''}">
             <td class="client"><b>${esc(c.nom || c.email)}</b><span>${esc(c.entreprise || c.email)}</span></td>
             <td>${esc(p.titre)}</td>
             <td>${e ? `${e.numero}. ${esc(ETAPES[e.numero]?.titre)}` : ''}</td>
             <td class="muted small">${m ? `${m.par_admin ? 'Vous' : 'Client'} · ${dateFr(m.created_at)}` : '—'}</td>
-            <td>${aRepondre ? '<span class="badge red">À répondre</span>' : ''}</td>
+            <td class="badges">${aRepondre ? '<span class="badge red">À répondre</span>' : ''}${nr ? `<span class="badge line">${nr} retour${nr > 1 ? 's' : ''}</span>` : ''}</td>
           </tr>`).join('')}
         </tbody></table>` : '<p class="empty">Aucun projet pour l’instant. Créez votre premier client ci-dessous.</p>'}
       ${sansProjet.length ? `<p class="muted small" style="margin-top:16px">Clients sans projet : ${sansProjet.map((c) => esc(c.nom || c.email)).join(', ')}</p>` : ''}
@@ -465,5 +488,225 @@ async function renderAdmin() {
     const { error } = await sb.from('projets').insert(Object.fromEntries(new FormData(ajout)));
     if (error) return alert(error.message);
     renderAdmin();
+  };
+}
+
+// Revue d'une vidéo ou d'une maquette (étape 3) ---------------------------------
+// Vidéo : chaque retour est attaché à un instant. Maquette (image) : à une position.
+
+const fmtTemps = (s) => {
+  if (s == null) return '';
+  const t = Math.floor(s), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + ':' + String(sec).padStart(2, '0');
+};
+const lireTemps = (txt) => {
+  const p = String(txt ?? '').trim().split(':').map(Number);
+  if (!p.length || p.some((n) => Number.isNaN(n))) return null;
+  return p.reduce((acc, n) => acc * 60 + n, 0);
+};
+const chargerScript = (src) => new Promise((ok, ko) => {
+  if (document.querySelector(`script[src="${src}"]`)) return ok();
+  const s = document.createElement('script');
+  s.src = src; s.onload = ok; s.onerror = ko;
+  document.head.appendChild(s);
+});
+
+// Reconnaît le type de lien pour choisir le bon lecteur.
+function analyserLien(url, categorie) {
+  let m;
+  if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/))) return { type: 'youtube', id: m[1] };
+  if ((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/([\da-f]+))?/))) return { type: 'vimeo', id: m[1], hash: m[2] };
+  if ((m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]+)/))) return { type: categorie === 'video' ? 'drive' : 'drive-image', id: m[1] };
+  if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url)) return { type: 'video' };
+  if (/\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url)) return { type: 'image' };
+  return { type: 'lien' };
+}
+
+// Lecteur commun : getTime() renvoie l'instant en secondes (ou null), seek(s) s'y place.
+async function monterLecteur(zone, lien, url) {
+  const vide = { getTime: async () => null, seek: () => {}, auto: false };
+  if (lien.type === 'youtube') {
+    zone.innerHTML = '<div class="ratio"><div id="yt"></div></div>';
+    await chargerScript('https://www.youtube.com/iframe_api');
+    await new Promise((ok) => (window.YT?.Player ? ok() : (window.onYouTubeIframeAPIReady = ok)));
+    const player = await new Promise((ok) => {
+      const pl = new YT.Player('yt', { videoId: lien.id, playerVars: { rel: 0 }, events: { onReady: () => ok(pl) } });
+    });
+    return { getTime: async () => player.getCurrentTime(), seek: (s) => { player.seekTo(s, true); player.playVideo(); }, pause: () => player.pauseVideo(), auto: true };
+  }
+  if (lien.type === 'vimeo') {
+    zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}${lien.hash ? `?h=${lien.hash}` : ''}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+    await chargerScript('https://player.vimeo.com/api/player.js');
+    const player = new Vimeo.Player(zone.querySelector('iframe'));
+    return { getTime: () => player.getCurrentTime(), seek: (s) => { player.setCurrentTime(s); player.play(); }, pause: () => player.pause(), auto: true };
+  }
+  if (lien.type === 'video') {
+    zone.innerHTML = `<div class="ratio"><video controls preload="metadata" src="${esc(url)}"></video></div>`;
+    const v = zone.querySelector('video');
+    return { getTime: async () => v.currentTime, seek: (s) => { v.currentTime = s; v.play(); }, pause: () => v.pause(), auto: true };
+  }
+  if (lien.type === 'drive') {
+    zone.innerHTML = `<div class="ratio"><iframe src="https://drive.google.com/file/d/${lien.id}/preview" allow="autoplay" allowfullscreen></iframe></div>
+      <p class="muted small" style="margin-top:8px">Vidéo Google Drive : notez l’instant affiché dans le lecteur (ex. 1:24) avec votre commentaire.</p>`;
+    return vide;
+  }
+  if (lien.type === 'image' || lien.type === 'drive-image') {
+    const src = lien.type === 'image' ? url : `https://drive.google.com/thumbnail?id=${lien.id}&sz=w2000`;
+    zone.innerHTML = `<div class="maquette"><img src="${esc(src)}" alt="Maquette"><div class="pins"></div></div>
+      <p class="muted small" style="margin-top:8px">Cliquez sur la maquette à l’endroit que vous voulez commenter.</p>`;
+    return vide;
+  }
+  zone.innerHTML = `<div class="notice">Ce lien ne peut pas être affiché ici.
+    <a href="${esc(url)}" target="_blank" rel="noopener">Ouvrir dans un nouvel onglet →</a>
+    Vous pouvez quand même laisser vos commentaires ci-dessous.</div>`;
+  return vide;
+}
+
+async function renderRevue(projetId, fichierId) {
+  const admin = profil.role === 'admin';
+  const [{ data: f, error }, { data: retours }, { data: p }] = await Promise.all([
+    sb.from('fichiers').select('*').eq('id', fichierId).single(),
+    sb.from('retours').select('*').eq('fichier_id', fichierId).order('created_at'),
+    sb.from('projets').select('titre, clients(nom, email)').eq('id', projetId).single(),
+  ]);
+  if (error) return showError(error);
+
+  const lien = analyserLien(f.url, f.categorie);
+  const estVideo = ['youtube', 'vimeo', 'video', 'drive'].includes(lien.type) || (f.categorie === 'video' && lien.type === 'lien');
+  const estImage = lien.type === 'image' || lien.type === 'drive-image';
+  const commentaires = (retours ?? []).filter((r) => r.type === 'commentaire')
+    .sort((a, b) => estVideo ? (a.temps_sec ?? 1e9) - (b.temps_sec ?? 1e9) : new Date(a.created_at) - new Date(b.created_at));
+  const validation = (retours ?? []).find((r) => r.type === 'validation');
+  const aTraiter = commentaires.filter((r) => !r.traite).length;
+  const nomClient = p?.clients?.nom || p?.clients?.email || 'Client';
+  // Numéro d'épingle stable : ordre d'arrivée.
+  const numeros = new Map((retours ?? []).filter((r) => r.pos_x != null).map((r, i) => [r.id, i + 1]));
+
+  app.innerHTML = `
+    <a class="back" href="#/projet/${projetId}/fichiers">← ${esc(p?.titre ?? 'Projet')}</a>
+    <p class="label rule" style="margin-top:28px">${estVideo ? 'Revue vidéo' : 'Revue de maquette'}</p>
+    <h1 class="h-l">${esc(f.titre)}</h1>
+    <p class="lead">${admin
+      ? `${aTraiter ? `<strong>${aTraiter}</strong> retour${aTraiter > 1 ? 's' : ''} à traiter.` : 'Tous les retours sont traités.'}`
+      : estVideo ? 'Lancez la vidéo, mettez-la en pause au moment voulu et écrivez votre remarque : l’instant est noté automatiquement.'
+      : 'Cliquez à l’endroit voulu sur la maquette puis écrivez votre remarque.'}</p>
+
+    ${validation ? `<div class="valide">✓ Validé par ${admin ? esc(nomClient) : 'vous'} le ${dateFr(validation.created_at)}</div>` : ''}
+
+    <div class="revue">
+      <div class="revue-media" id="media"><p class="muted">Chargement du lecteur…</p></div>
+      <aside class="revue-side">
+        <form id="retour" class="card">
+          <p class="label">Nouveau commentaire</p>
+          ${estVideo ? `<label for="r_temps">Instant<span class="hint">Rempli automatiquement quand vous écrivez</span></label>
+            <div class="temps-row"><input id="r_temps" name="temps" placeholder="0:00" inputmode="numeric"><button type="button" class="btn btn-line btn-sm" id="r_maintenant">Instant actuel</button></div>` : ''}
+          ${estImage ? '<p class="pin-info muted small" id="pin-info">Aucun endroit choisi : cliquez sur la maquette.</p>' : ''}
+          <label for="r_contenu">Remarque</label>
+          <textarea id="r_contenu" name="contenu" rows="3" required placeholder="${estVideo ? 'Ex. : couper ce plan, musique trop forte…' : 'Ex. : logo plus grand, changer cette photo…'}"></textarea>
+          <div class="form-foot"><button class="btn">Ajouter</button></div>
+        </form>
+        ${!admin && !validation ? `<div class="card valider">
+          <p class="label">Tout vous convient ?</p>
+          <p class="muted small">Validez cette version. Vos commentaires restent visibles.</p>
+          <div class="form-foot"><button class="btn btn-line" id="valider">Valider cette version</button></div>
+        </div>` : ''}
+      </aside>
+    </div>
+
+    <section class="section">
+      <p class="label">Commentaires (${commentaires.length})</p>
+      <ul class="retours">${commentaires.map((r) => `
+        <li class="${r.traite ? 'fait' : ''}">
+          ${r.temps_sec != null ? `<button class="chip" data-seek="${r.temps_sec}" title="Aller à cet instant">▶ ${fmtTemps(r.temps_sec)}</button>` : ''}
+          ${numeros.has(r.id) ? `<span class="chip pin-n">${numeros.get(r.id)}</span>` : ''}
+          <div class="corps">
+            <div class="qui"><b>${r.par_admin ? 'Mackerprod' : admin ? esc(nomClient) : 'Vous'}</b> · ${dateFr(r.created_at)}</div>
+            <div>${esc(r.contenu).replace(/\n/g, '<br>')}</div>
+          </div>
+          <div class="etat">
+            ${admin
+              ? `<label class="check"><input type="checkbox" data-traite="${r.id}" ${r.traite ? 'checked' : ''}> Traité</label>`
+              : `<span class="badge ${r.traite ? 'ok' : 'line'}">${r.traite ? 'Traité' : 'Envoyé'}</span>`}
+            ${!admin && !r.traite && r.auteur === profil.id ? `<button class="btn-txt" data-suppr="${r.id}">Retirer</button>` : ''}
+          </div>
+        </li>`).join('') || '<li><span class="empty">Aucun commentaire pour l’instant.</span></li>'}
+      </ul>
+    </section>`;
+
+  const lecteur = await monterLecteur(document.getElementById('media'), lien, f.url);
+  const form = document.getElementById('retour');
+  const champTemps = document.getElementById('r_temps');
+
+  // Vidéo : l'instant est capturé dès qu'on commence à écrire, et la vidéo se met en pause.
+  if (champTemps) {
+    const capturer = async () => {
+      const t = await lecteur.getTime();
+      if (t != null) { champTemps.value = fmtTemps(t); lecteur.pause?.(); }
+    };
+    form.contenu.addEventListener('focus', () => { if (lecteur.auto && !champTemps.dataset.manuel) capturer(); });
+    champTemps.addEventListener('input', () => (champTemps.dataset.manuel = '1'));
+    document.getElementById('r_maintenant').onclick = () => { delete champTemps.dataset.manuel; capturer(); };
+    if (!lecteur.auto) document.getElementById('r_maintenant').hidden = true;
+  }
+
+  // Maquette : épingles existantes + épingle en cours.
+  let pos = null;
+  const maquette = app.querySelector('.maquette');
+  if (maquette) {
+    const pins = maquette.querySelector('.pins');
+    pins.innerHTML = (retours ?? []).filter((r) => numeros.has(r.id)).map((r) =>
+      `<span class="pin ${r.traite ? 'fait' : ''}" style="left:${r.pos_x}%;top:${r.pos_y}%">${numeros.get(r.id)}</span>`).join('')
+      + '<span class="pin nouveau" hidden>+</span>';
+    const nouveau = pins.querySelector('.nouveau');
+    maquette.onclick = (ev) => {
+      const box = maquette.getBoundingClientRect();
+      pos = { x: Math.round(1000 * (ev.clientX - box.left) / box.width) / 10, y: Math.round(1000 * (ev.clientY - box.top) / box.height) / 10 };
+      Object.assign(nouveau.style, { left: pos.x + '%', top: pos.y + '%' });
+      nouveau.hidden = false;
+      document.getElementById('pin-info').textContent = 'Endroit choisi ✓ Écrivez votre remarque.';
+      form.contenu.focus();
+    };
+  }
+
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const contenu = form.contenu.value.trim();
+    if (!contenu) return;
+    const ligne = { fichier_id: fichierId, projet_id: projetId, contenu };
+    if (champTemps?.value) {
+      const t = lireTemps(champTemps.value);
+      if (t == null) return alert('Instant non reconnu. Écrivez par exemple 1:24.');
+      ligne.temps_sec = t;
+    }
+    if (pos) { ligne.pos_x = pos.x; ligne.pos_y = pos.y; }
+    const { error } = await sb.from('retours').insert(ligne);
+    if (error) return alert(error.message);
+    renderRevue(projetId, fichierId);
+  };
+
+  app.querySelectorAll('[data-seek]').forEach((b) => (b.onclick = () => {
+    lecteur.seek(Number(b.dataset.seek));
+    document.getElementById('media').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }));
+
+  app.querySelectorAll('[data-traite]').forEach((c) => (c.onchange = async () => {
+    const { error } = await sb.from('retours').update({ traite: c.checked }).eq('id', c.dataset.traite);
+    if (error) return alert(error.message);
+    c.closest('li').classList.toggle('fait', c.checked);
+  }));
+
+  app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
+    if (!confirm('Retirer ce commentaire ?')) return;
+    const { error } = await sb.from('retours').delete().eq('id', b.dataset.suppr);
+    if (error) return alert(error.message);
+    renderRevue(projetId, fichierId);
+  }));
+
+  const valider = document.getElementById('valider');
+  if (valider) valider.onclick = async () => {
+    if (!confirm('Valider cette version ? Mackerprod sera prévenu.')) return;
+    const { error } = await sb.from('retours').insert({ fichier_id: fichierId, projet_id: projetId, type: 'validation' });
+    if (error) return alert(error.message);
+    renderRevue(projetId, fichierId);
   };
 }

@@ -8,7 +8,8 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 ### 1. Supabase
 1. Crée un compte sur https://supabase.com puis **New project** (région : Paris / eu-west-3).
 2. Ouvre **SQL Editor > New query**, colle le contenu de `supabase/schema.sql`, puis **Run**.
-   Fais de même avec `supabase/02_etape2.sql` (messages, fichiers, fiche de lancement).
+   Fais de même avec `supabase/02_etape2.sql` (messages, fichiers, fiche de lancement)
+   puis `supabase/03_etape3.sql` (commentaires horodatés et validation).
 3. Dans **Project Settings > API**, copie la *Project URL* et la clé *anon public* dans `config.js`.
 4. Dans **Authentication > URL Configuration**, mets l'adresse de ton site dans *Site URL*
    et ajoute-la dans *Redirect URLs* (ex. `https://espace.mackerprod.fr/`).
@@ -32,6 +33,11 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 - **Dans chaque projet** : les 7 étapes, un fil de messages, les liens vers les fichiers et vidéos,
   et la fiche de lancement. Sur ton tableau de bord, un projet affiche « Message client en attente »
   tant que tu n'as pas répondu.
+- **Revue vidéo et maquette** : sur un fichier de type Vidéo ou Maquette, le client clique sur
+  « Commenter et valider ». Vidéo (YouTube, Vimeo, MP4) : l'instant est noté tout seul quand il écrit,
+  et un clic sur l'instant y ramène la vidéo. Vidéo Google Drive : il note l'instant à la main.
+  Maquette (image PNG/JPG/WebP ou image Drive) : il clique à l'endroit voulu, une épingle numérotée s'affiche.
+  Tu coches « Traité » sur chaque retour ; le client peut valider la version.
 
 ## Limites de l'offre gratuite Supabase à connaître
 - Un projet inactif pendant 7 jours est mis en pause. Il se relance en un clic depuis le tableau de bord Supabase.
@@ -44,3 +50,4 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 - `config.js` : tes clés Supabase.
 - `supabase/schema.sql` : tables, 7 étapes automatiques et droits d'accès (chaque client ne voit que son dossier).
 - `supabase/02_etape2.sql` : fiche de lancement, fichiers (liens) et messages.
+- `supabase/03_etape3.sql` : retours horodatés ou épinglés, et validation.
