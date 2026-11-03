@@ -291,3 +291,26 @@ details.ajout[open] summary { margin-bottom: 4px; }
 .partage p { color: var(--text-2); }
 .signature { border-top: 1px solid var(--line); padding-top: 40px; }
 .check.livrable { margin: 0; font: 400 .72rem/1 var(--sans); letter-spacing: .08em; text-transform: none; color: var(--bronze); }
+
+/* Après-vente (expérience 3) */
+.apres { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.apres-carte { background: var(--bg-2); }
+.apres-carte summary { list-style: none; display: grid; grid-template-columns: 200px 1fr auto; align-items: center; gap: 20px; padding: 20px 24px; cursor: pointer; }
+.apres-carte summary::-webkit-details-marker { display: none; }
+.apres-carte summary:hover { background: var(--bg-3); }
+.apres-carte .apres-texte { color: var(--text-2); font-size: .92rem; }
+.apres-carte[open] summary .btn { visibility: hidden; }
+.apres-carte form { padding: 0 24px 24px; }
+.demandes { list-style: none; margin: 16px 0 0; padding: 0; border: 1px solid var(--line); }
+.demandes li { display: flex; align-items: center; gap: 16px; padding: 14px 20px; background: var(--bg-2); }
+.demandes li + li { border-top: 1px solid var(--line); }
+.demandes .tag { flex: none; }
+.demandes .meta { margin-left: auto; font-size: .8rem; color: var(--muted); white-space: nowrap; }
+.rdv { margin-top: 24px; padding: 20px 24px; border: 1px solid var(--bronze); }
+.rdv .h-m { margin: 8px 0 0; }
+.rdv em { color: var(--bronze); }
+@media (max-width: 720px) {
+  .apres-carte summary { grid-template-columns: 1fr; gap: 10px; }
+  .apres-carte[open] summary .btn { display: none; }
+  .demandes li { flex-wrap: wrap; }
+}

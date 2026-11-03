@@ -1,5 +1,5 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, AVIS_GOOGLE_URL } from './config.js';
 import { SERVICES, EQUIPE, serviceDe } from './services.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -29,6 +29,8 @@ const jourFr = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { we
 const jourCourt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const equipeHtml = (ids) => `<div class="equipe">${ids.map((k) => EQUIPE[k]).map((m) => `
   <figure><img src="${m.photo}" alt="${esc(m.nom)}" loading="lazy"><figcaption><b>${esc(m.nom)}</b><span>${esc(m.role)}</span></figcaption></figure>`).join('')}</div>`;
+const aujourdhui = () => new Date().toLocaleDateString('sv-SE');
+const DEMANDES = { parrainage: 'Parrainage', tirages: 'Tirages photo', album: 'Album', nouveau_projet: 'Nouveau projet' };
 const rempli = (v) => v != null && String(v).trim() !== '';
 const tri = (etapes) => [...(etapes ?? [])].sort((a, b) => a.numero - b.numero);
 
@@ -141,6 +143,7 @@ async function renderClient(clientId) {
     sb.from('retours').select('fichier_id, type'),
   ]);
   if (error) return showError(error);
+  const { data: demandes } = await sb.from('demandes').select('*').order('created_at', { ascending: false });
 
   // Ce que le client doit faire maintenant, du plus important au moins important.
   const todo = [];
@@ -153,6 +156,9 @@ async function renderClient(clientId) {
         todo.push({ href: `#/projet/${p.id}/revue/${f.id}`, titre: `Donner votre avis sur « ${f.titre} »`, sub: `${p.titre} · commentez puis validez` });
       }
     }
+    if (p.prochain_rdv && p.prochain_rdv >= aujourdhui()) {
+      todo.push({ href: `#/projet/${p.id}`, titre: `${p.prochain_rdv_note || 'Prochain rendez-vous'} · ${jourFr(p.prochain_rdv)}`, sub: `${p.titre} · on se retrouve bientôt` });
+    }
     const m = dernierMessage(messages, p.id);
     if (m?.par_admin) todo.push({ href: `#/projet/${p.id}/messages`, titre: 'Nouveau message de Mackerprod', sub: `${p.titre} · ${dateFr(m.created_at)}` });
     const e = etapeCourante(p.etapes);
@@ -161,6 +167,35 @@ async function renderClient(clientId) {
       todo.push({ href: `#/projet/${p.id}/lancement`, titre: 'Remplir la fiche de préparation', sub: `${p.titre} · pour que tout soit prêt le jour du tournage` });
     }
   }
+  // Après-vente : visible dès qu'un projet est livré ou arrive au bout.
+  const livres = (projets ?? []).filter((p) => (fichiers ?? []).some((x) => x.projet_id === p.id && x.livrable) || (etapeCourante(p.etapes)?.numero ?? 0) >= 6);
+  const avecPhotos = livres.some((p) => ['mariage', 'evenement', 'seance_photo'].includes(p.type));
+  const carteApres = (type, titre, texte, champs, bouton) => `
+    <details class="apres-carte">
+      <summary><span class="label bronze">${titre}</span><span class="apres-texte">${texte}</span><span class="btn btn-line btn-sm">${bouton}</span></summary>
+      <form class="demande" data-type="${type}">${champs}
+        <div class="form-foot"><button class="btn btn-sm">Envoyer</button><span class="msg" role="status"></span></div></form>
+    </details>`;
+  const apresHtml = livres.length ? `
+    <section class="section" id="apres">
+      <p class="label">Et après ?</p>
+      <p class="panel-intro">Votre projet est livré, mais on reste là. Une envie, une question, quelqu’un à nous présenter : c’est ici.</p>
+      <div class="apres">
+        ${carteApres('parrainage', 'Parrainer un proche', 'Un ami, un collègue, un couple qui se marie ? Présentez-nous, on prendra soin d’eux comme de vous.', `
+          <div class="grid"><div><label>Son nom</label><input name="nom" required></div>
+          <div><label>E-mail ou téléphone</label><input name="contact" required></div>
+          <div class="full"><label>Quelques mots sur son projet</label><textarea name="message" rows="2"></textarea></div></div>`, 'Recommander')}
+        ${avecPhotos ? carteApres('tirages', 'Tirages & albums', 'Vos plus belles images sur papier : tirages d’art, cadres ou album à feuilleter.', `
+          <div class="grid"><div><label>Ce qui vous ferait plaisir</label><select name="choix"><option value="tirages">Des tirages ou des cadres</option><option value="album">Un album</option></select></div>
+          <div class="full"><label>Formats, quantités, photos préférées…</label><textarea name="message" rows="2"></textarea></div></div>`, 'Commander') : ''}
+        ${carteApres('nouveau_projet', 'Un nouveau projet', 'Un lancement, un anniversaire, une nouvelle saison de contenus : parlons-en.', `
+          <div><label>Votre idée</label><textarea name="message" rows="2" required></textarea></div>`, 'En parler')}
+      </div>
+      ${(demandes ?? []).length ? `<ul class="demandes">${demandes.map((x) => `<li><span class="tag">${DEMANDES[x.type]}</span>
+        <span>${esc(x.details?.nom || x.details?.message || '')}</span><span class="meta">${dateFr(x.created_at)}</span>
+        <span class="badge ${x.traitee ? 'ok' : 'line'}">${x.traitee ? 'Traitée' : 'Reçue'}</span></li>`).join('')}</ul>` : ''}
+    </section>` : '';
+
   const manquants = FICHE_ESSENTIEL.filter((k) => !rempli(fiche[k]));
   if (manquants.length) todo.push({ href: '#fiche', titre: 'Compléter vos coordonnées', sub: `${manquants.length} information${manquants.length > 1 ? 's' : ''} manquante${manquants.length > 1 ? 's' : ''} · une seule fois pour tous vos projets` });
 
@@ -195,6 +230,8 @@ async function renderClient(clientId) {
       ${equipeHtml([...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))].length ? [...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))] : Object.keys(EQUIPE))}
     </section>
 
+    ${apresHtml}
+
     <section class="section" id="fiche">
       <p class="label">Vos coordonnées</p>
       <p class="panel-intro">À remplir une seule fois : Mackerprod les réutilise pour tous vos projets.</p>
@@ -209,6 +246,14 @@ async function renderClient(clientId) {
       </div>
     </section>`;
   document.getElementById('exporter').onclick = () => exporterDossier(clientId);
+  app.querySelectorAll('form.demande').forEach((f) => (f.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const { choix, ...details } = Object.fromEntries(new FormData(f));
+    const type = choix || f.dataset.type;
+    const { error } = await sb.from('demandes').insert({ client_id: clientId, projet_id: livres.at(-1)?.id ?? null, type, details });
+    if (error) return alert(error.message);
+    renderClient(clientId);
+  }));
   bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', clientId), () => renderClient(clientId));
 }
 
@@ -313,6 +358,8 @@ async function renderProjet(id, onglet) {
           ${admin ? '' : `<p class="attendu">De votre côté : ${esc(info.attendu)}${info.onglet ? ` <a href="#/projet/${id}/${info.onglet}">C’est ici →</a>` : ''}</p>`}
         </div>
       </div>
+      ${!admin && p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<div class="rdv"><p class="label bronze">Prochain rendez-vous</p>
+        <p class="h-m">${esc(p.prochain_rdv_note || 'On se retrouve')} <em>${esc(jourFr(p.prochain_rdv))}</em></p></div>` : ''}
       <div class="section" style="margin-top:40px">
         <p class="label">Les 7 étapes${admin ? ' · modifiez le statut ici' : ''}</p>
         ${parcoursHtml(p, admin)}
@@ -336,6 +383,12 @@ async function renderProjet(id, onglet) {
         <form id="mot-livraison"><textarea name="mot" rows="3" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
         <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
         <p class="muted small" style="margin-top:6px">Affiché en haut de la page de livraison. Cochez « Livrable final » sur les fichiers à livrer dans l’onglet Fichiers.</p></div>
+      <div class="section"><p class="label">Prochain rendez-vous</p>
+        <form id="prochain-rdv" class="grid" style="max-width:640px">
+          <div><label for="rdv_date">Date</label><input id="rdv_date" type="date" name="prochain_rdv" value="${esc(p.prochain_rdv)}"></div>
+          <div><label for="rdv_note">Quoi</label><input id="rdv_note" name="prochain_rdv_note" value="${esc(p.prochain_rdv_note)}" placeholder="Prochain tournage Frame²"></div>
+          <div class="full form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
+        <p class="muted small" style="margin-top:6px">Le client le voit dans son espace et reçoit un rappel 7 jours avant (vous aussi).</p></div>
       <div class="section"><p class="label">Prestation</p>
         <select id="changer-type" style="max-width:420px">${Object.entries(SERVICES).map(([k, v]) =>
           `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
@@ -406,6 +459,8 @@ async function renderProjet(id, onglet) {
 
   const motForm = document.getElementById('mot-livraison');
   if (motForm) bindForm('mot-livraison', ({ mot }) => sb.from('projets').update({ mot_livraison: mot || null }).eq('id', id));
+  if (document.getElementById('prochain-rdv')) bindForm('prochain-rdv', ({ prochain_rdv, prochain_rdv_note }) =>
+    sb.from('projets').update({ prochain_rdv: prochain_rdv || null, prochain_rdv_note: prochain_rdv_note || null }).eq('id', id));
   app.querySelectorAll('[data-livrable]').forEach((c) => (c.onchange = async () => {
     const { error } = await sb.from('fichiers').update({ livrable: c.checked }).eq('id', c.dataset.livrable);
     if (error) return alert(error.message);
@@ -477,6 +532,7 @@ async function renderAdmin() {
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(500),
     sb.from('retours').select('projet_id').eq('traite', false),
   ]);
+  const { data: demandes } = await sb.from('demandes').select('*, clients(nom, email), projets(titre)').eq('traitee', false).order('created_at');
   const nbRetours = (pid) => (retours ?? []).filter((r) => r.projet_id === pid).length;
   if (error) return showError(error);
 
@@ -489,6 +545,23 @@ async function renderAdmin() {
   const totalRetours = (retours ?? []).length;
   const nbActifs = lignes.filter((l) => l.e?.statut !== 'termine').length;
 
+  // Les 30 prochains jours : rendez-vous fixés et anniversaires de mariage.
+  const auj = aujourdhui();
+  const dans30 = new Date(Date.now() + 30 * 864e5).toLocaleDateString('sv-SE');
+  const avenir = lignes.flatMap(({ c, p }) => {
+    const out = [];
+    if (p.prochain_rdv && p.prochain_rdv >= auj && p.prochain_rdv <= dans30) out.push({ d: p.prochain_rdv, c, p, quoi: p.prochain_rdv_note || 'Rendez-vous' });
+    const jourJ = p.type === 'mariage' && (p.etapes ?? []).find((e) => e.numero === 4)?.date_prevue;
+    if (jourJ && jourJ < auj) {
+      let an = Number(auj.slice(0, 4));
+      let d = `${an}${jourJ.slice(4)}`;
+      if (d < auj) d = `${++an}${jourJ.slice(4)}`;
+      const n = an - Number(jourJ.slice(0, 4));
+      if (d <= dans30) out.push({ d, c, p, quoi: `${n} an${n > 1 ? 's' : ''} de mariage` });
+    }
+    return out;
+  }).sort((a, b) => a.d.localeCompare(b.d));
+
   app.innerHTML = `
     <p class="label rule">Administration</p>
     <h1 class="h-l">Tableau de <em>bord</em></h1>
@@ -499,6 +572,20 @@ async function renderAdmin() {
       <div><strong>${nbActifs}</strong><span>projet${nbActifs > 1 ? 's' : ''} en cours</span></div>
       <div><strong>${clients?.length ?? 0}</strong><span>client${(clients?.length ?? 0) > 1 ? 's' : ''}</span></div>
     </div>
+
+    ${(demandes ?? []).length ? `<section class="section">
+      <p class="label red">Demandes clients</p>
+      <ul class="demandes">${demandes.map((x) => `<li><span class="tag">${DEMANDES[x.type]}</span>
+        <span><b>${esc(x.clients?.nom || x.clients?.email)}</b>${x.projets ? ` · ${esc(x.projets.titre)}` : ''}<br>
+        <span class="muted small">${esc([x.details?.nom, x.details?.contact, x.details?.message].filter(Boolean).join(' · '))}</span></span>
+        <span class="meta">${dateFr(x.created_at)}</span><button class="btn btn-line btn-sm" data-traitee="${x.id}">Traitée</button></li>`).join('')}</ul>
+    </section>` : ''}
+
+    ${avenir.length ? `<section class="section">
+      <p class="label">Dans les 30 prochains jours</p>
+      <div class="todo">${avenir.map((a) => `<a href="#/projet/${a.p.id}"><span class="num">${Number(a.d.slice(8))}</span>
+        <span><strong>${esc(a.quoi)} · ${esc(jourFr(a.d))}</strong><span class="sub">${esc(a.c.nom || a.c.email)} · ${esc(a.p.titre)}</span></span><span class="go">→</span></a>`).join('')}</div>
+    </section>` : ''}
 
     <section class="section">
       <p class="label">Projets</p>
@@ -545,6 +632,11 @@ async function renderAdmin() {
     </section>`;
 
   app.querySelectorAll('tr[data-href]').forEach((tr) => (tr.onclick = () => (location.hash = tr.dataset.href)));
+  app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
+    const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
+    if (error) return alert(error.message);
+    renderAdmin();
+  }));
 
   document.getElementById('nouveau').onsubmit = async (ev) => {
     ev.preventDefault();
@@ -883,8 +975,9 @@ async function renderLivraison(id) {
     </section>
     ${admin ? '' : `<section class="section">
       <p class="label">Un mot pour nous ?</p>
-      <div class="card"><p>Votre avis compte énormément pour une petite équipe comme la nôtre. Dites-nous ce que vous en pensez dans les messages du projet.</p>
-      <div class="form-foot"><a class="btn btn-line" href="#/projet/${id}/messages">Nous écrire</a></div></div>
+      <div class="card"><p>Votre avis compte énormément pour une petite équipe comme la nôtre. ${AVIS_GOOGLE_URL ? 'Quelques mots sur Google aident d’autres personnes à nous trouver, et nous font très plaisir.' : 'Dites-nous ce que vous en pensez dans les messages du projet.'}</p>
+      <div class="form-foot">${AVIS_GOOGLE_URL ? `<a class="btn" href="${esc(AVIS_GOOGLE_URL)}" target="_blank" rel="noopener">Laisser un avis Google →</a>` : ''}
+        <a class="btn btn-line" href="#/projet/${id}/messages">Nous écrire</a></div></div>
     </section>`}`;
 
   monterVideos(d);

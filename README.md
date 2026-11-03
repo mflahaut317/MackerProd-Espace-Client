@@ -46,6 +46,14 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
   « Le mot de l'équipe » dans l'onglet Avancement. Le client reçoit « Votre livraison est prête » et
   voit une page soignée (films, galerie photo, fichiers). Il peut créer un lien de partage pour ses proches,
   sans compte, et le couper à tout moment.
+- **Après-vente** : une fois le projet livré, le client voit « Et après ? » : parrainer un proche,
+  commander des tirages ou un album (mariage, événement, séance photo), proposer un nouveau projet.
+  Chaque demande t'arrive par e-mail et s'affiche en haut de ton tableau de bord (bouton « Traitée »).
+  Sur la page projet, fixe un **prochain rendez-vous** (ex. prochain tournage Frame²) : le client le voit,
+  et vous recevez tous les deux un rappel 7 jours avant. Chaque matin, l'espace envoie aussi la demande
+  d'avis Google (3 jours après la livraison) et les vœux d'anniversaire de mariage (date du jour J, étape 4).
+  Ton tableau de bord liste les rendez-vous et anniversaires des 30 prochains jours.
+  Pour le bouton d'avis Google, colle ton lien « Demander des avis » dans `AVIS_GOOGLE_URL` (config.js).
 
 ### 4. Alertes e-mail (Resend, gratuit jusqu'à 3 000 e-mails/mois)
 Chaque événement (message, retour sur vidéo/maquette, validation, nouvelle version, étape suivante)
