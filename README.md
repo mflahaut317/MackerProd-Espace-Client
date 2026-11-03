@@ -42,6 +42,10 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
   Tu coches « Traité » sur chaque retour ; le client peut valider la version.
 - **Export** : le client télécharge tout son dossier (coordonnées, projets, liens, échanges, validations)
   en un fichier lisible hors ligne. Tu peux aussi l'exporter depuis la page projet.
+- **Livraison** : dans l'onglet Fichiers, coche « Livrable final » sur les fichiers à remettre, et écris
+  « Le mot de l'équipe » dans l'onglet Avancement. Le client reçoit « Votre livraison est prête » et
+  voit une page soignée (films, galerie photo, fichiers). Il peut créer un lien de partage pour ses proches,
+  sans compte, et le couper à tout moment.
 
 ### 4. Alertes e-mail (Resend, gratuit jusqu'à 3 000 e-mails/mois)
 Chaque événement (message, retour sur vidéo/maquette, validation, nouvelle version, étape suivante)

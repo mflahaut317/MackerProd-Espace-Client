@@ -54,13 +54,18 @@ let profil = null;
 sb.auth.onAuthStateChange((_event, session) => {
   setTimeout(() => demarrer(session).catch(showError), 0);
 });
-window.addEventListener('hashchange', () => profil && Promise.resolve(router()).catch(showError));
+window.addEventListener('hashchange', () => {
+  const partage = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
+  if (partage) return renderPartage(partage[1]).catch(showError);
+  if (profil) Promise.resolve(router()).catch(showError);
+});
 logoutBtn.onclick = () => sb.auth.signOut();
 
 async function demarrer(session) {
   logoutBtn.hidden = !session;
   profil = null;
-  if (!session) return renderLogin();
+  const partage = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
+  if (!session) return partage ? renderPartage(partage[1]) : renderLogin();
 
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (error) return showError(error);
@@ -71,6 +76,10 @@ async function demarrer(session) {
 
 function router() {
   window.scrollTo(0, 0);
+  const pt = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
+  if (pt) return renderPartage(pt[1]);
+  const lv = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/livraison$/);
+  if (lv) return renderLivraison(lv[1]);
   const r = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/revue\/([0-9a-f-]{36})$/);
   if (r) return renderRevue(r[1], r[2]);
   const m = location.hash.match(/^#\/projet\/([0-9a-f-]{36})(?:\/(\w+))?$/);
@@ -128,7 +137,7 @@ async function renderClient(clientId) {
     sb.from('projets').select('*, etapes(*)').eq('client_id', clientId).order('created_at'),
     sb.from('lancements').select('projet_id, reponses'),
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(200),
-    sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin').in('categorie', ['video', 'maquette']),
+    sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin, livrable'),
     sb.from('retours').select('fichier_id, type'),
   ]);
   if (error) return showError(error);
@@ -136,7 +145,10 @@ async function renderClient(clientId) {
   // Ce que le client doit faire maintenant, du plus important au moins important.
   const todo = [];
   for (const p of projets ?? []) {
-    for (const f of (fichiers ?? []).filter((x) => x.projet_id === p.id && x.par_admin)) {
+    if ((fichiers ?? []).some((x) => x.projet_id === p.id && x.livrable)) {
+      todo.unshift({ href: `#/projet/${p.id}/livraison`, titre: serviceDe(p).livraison, sub: `${p.titre} · découvrez votre livraison` });
+    }
+    for (const f of (fichiers ?? []).filter((x) => x.projet_id === p.id && x.par_admin && REVUE.includes(x.categorie) && !x.livrable)) {
       if (!(retours ?? []).some((r) => r.fichier_id === f.id && r.type === 'validation')) {
         todo.push({ href: `#/projet/${p.id}/revue/${f.id}`, titre: `Donner votre avis sur « ${f.titre} »`, sub: `${p.titre} · commentez puis validez` });
       }
@@ -282,6 +294,9 @@ async function renderProjet(id, onglet) {
     <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ' · ' + esc(nomClient) + (p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : '') : ''}</p>
     <h1 class="h-l">${esc(p.titre)}</h1>
 
+    ${(fichiers ?? []).some((f) => f.livrable) ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
+      <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">${admin ? 'Voir la page client' : 'Découvrir'} →</span></a>` : ''}
+
     <nav class="tabs" role="tablist">
       ${onglets.map(([k, t, n, alerte]) => `<button role="tab" data-tab="${k}" aria-selected="${k === actif}">${t}${
         alerte ? '<span class="count alert">!</span>' : n ? `<span class="count">${n}</span>` : ''}</button>`).join('')}
@@ -317,6 +332,10 @@ async function renderProjet(id, onglet) {
       ${admin && p.clients ? `<div class="section"><p class="label">Contact</p>
         <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p>
         <div class="form-foot"><button class="btn btn-line btn-sm" id="exporter">Exporter le dossier du client</button></div></div>
+      <div class="section"><p class="label">Mot de l’équipe pour la livraison</p>
+        <form id="mot-livraison"><textarea name="mot" rows="3" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
+        <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
+        <p class="muted small" style="margin-top:6px">Affiché en haut de la page de livraison. Cochez « Livrable final » sur les fichiers à livrer dans l’onglet Fichiers.</p></div>
       <div class="section"><p class="label">Prestation</p>
         <select id="changer-type" style="max-width:420px">${Object.entries(SERVICES).map(([k, v]) =>
           `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
@@ -350,6 +369,7 @@ async function renderProjet(id, onglet) {
             ${ri.valide ? '<span class="badge ok">Validé</span>' : ''}
             ${admin && ri.aTraiter ? `<span class="badge red">${ri.aTraiter} retour${ri.aTraiter > 1 ? 's' : ''} à traiter</span>` : ''}
             <a class="btn btn-line btn-sm" href="#/projet/${id}/revue/${f.id}">${admin ? 'Voir les retours' : ri.valide ? 'Revoir' : 'Commenter et valider'} →</a>`; })() : ''}
+          ${admin ? `<label class="check livrable"><input type="checkbox" data-livrable="${f.id}" ${f.livrable ? 'checked' : ''}> Livrable final</label>` : f.livrable ? '<span class="badge ok">Livré</span>' : ''}
           ${admin || f.ajoute_par === profil.id ? `<button class="btn-txt" data-suppr="${f.id}">Retirer</button>` : ''}
         </li>`).join('') || '<li><span class="empty">Aucun fichier pour l’instant.</span></li>'}
       </ul>
@@ -384,6 +404,13 @@ async function renderProjet(id, onglet) {
   }));
   montrer(actif);
 
+  const motForm = document.getElementById('mot-livraison');
+  if (motForm) bindForm('mot-livraison', ({ mot }) => sb.from('projets').update({ mot_livraison: mot || null }).eq('id', id));
+  app.querySelectorAll('[data-livrable]').forEach((c) => (c.onchange = async () => {
+    const { error } = await sb.from('fichiers').update({ livrable: c.checked }).eq('id', c.dataset.livrable);
+    if (error) return alert(error.message);
+    renderProjet(id, 'fichiers');
+  }));
   const changerType = document.getElementById('changer-type');
   if (changerType) changerType.onchange = async () => {
     const { error } = await sb.from('projets').update({ type: changerType.value }).eq('id', id);
@@ -572,11 +599,11 @@ function analyserLien(url, categorie) {
 async function monterLecteur(zone, lien, url) {
   const vide = { getTime: async () => null, seek: () => {}, auto: false };
   if (lien.type === 'youtube') {
-    zone.innerHTML = '<div class="ratio"><div id="yt"></div></div>';
+    zone.innerHTML = '<div class="ratio"><div class="yt-cible"></div></div>';
     await chargerScript('https://www.youtube.com/iframe_api');
     await new Promise((ok) => (window.YT?.Player ? ok() : (window.onYouTubeIframeAPIReady = ok)));
     const player = await new Promise((ok) => {
-      const pl = new YT.Player('yt', { videoId: lien.id, playerVars: { rel: 0 }, events: { onReady: () => ok(pl) } });
+      const pl = new YT.Player(zone.querySelector('.yt-cible'), { videoId: lien.id, playerVars: { rel: 0 }, events: { onReady: () => ok(pl) } });
     });
     return { getTime: async () => player.getCurrentTime(), seek: (s) => { player.seekTo(s, true); player.playVideo(); }, pause: () => player.pauseVideo(), auto: true };
   }
@@ -794,4 +821,103 @@ ${(projets ?? []).map((p) => {
   a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
   a.download = `dossier-mackerprod-${(c.nom || c.email).toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-')}.html`;
   document.body.appendChild(a); a.click(); a.remove();
+}
+
+// Livraison (expérience 2) -----------------------------------------------------
+// Une vraie page de remise : mot de l'équipe, films lisibles sur place, photos, téléchargements,
+// et un lien de partage pour les proches, sans compte.
+
+const estImageUrl = (u) => /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(u);
+
+function livraisonHtml(d, { prive = false } = {}) {
+  const svc = SERVICES[d.type] ?? SERVICES.site_web;
+  const videos = d.fichiers.filter((f) => f.categorie === 'video');
+  const images = d.fichiers.filter((f) => f.categorie !== 'video' && estImageUrl(f.url));
+  const autres = d.fichiers.filter((f) => f.categorie !== 'video' && !estImageUrl(f.url));
+  return `
+    <section class="livraison-hero">
+      <p class="label rule">${esc(svc.label)}</p>
+      <h1 class="h-l">${esc(svc.livraison).replace(/^(\S+)/, '$1')} <span class="sous">${esc(d.titre)}</span></h1>
+      ${d.mot ? `<blockquote class="mot">${esc(d.mot).replace(/\n/g, '<br>')}<cite>L’équipe Mackerprod</cite></blockquote>` : ''}
+    </section>
+    ${videos.map((f, i) => `<section class="section"><p class="label">${esc(f.titre)}</p><div class="lecteur" data-video="${i}"></div>
+      <p class="small" style="margin-top:10px"><a href="${esc(f.url)}" target="_blank" rel="noopener">Ouvrir ou télécharger →</a></p></section>`).join('')}
+    ${images.length ? `<section class="section"><p class="label">Photos</p><div class="galerie">${images.map((f) =>
+      `<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.titre)}" loading="lazy"></a>`).join('')}</div></section>` : ''}
+    ${autres.length ? `<section class="section"><p class="label">${prive ? 'Vos fichiers' : 'Fichiers'}</p><div class="todo">${autres.map((f) => `
+      <a href="${esc(f.url)}" target="_blank" rel="noopener"><span class="tag">${CATEGORIES[f.categorie]}</span>
+        <span><strong>${esc(f.titre)}</strong><span class="sub">Ouvrir ou télécharger</span></span><span class="go">↓</span></a>`).join('')}</div></section>` : ''}
+    ${d.fichiers.length ? '' : '<p class="empty section">La livraison arrive bientôt.</p>'}`;
+}
+
+async function monterVideos(d) {
+  const videos = d.fichiers.filter((f) => f.categorie === 'video');
+  for (const [i, f] of videos.entries()) {
+    const zone = app.querySelector(`[data-video="${i}"]`);
+    if (zone) monterLecteur(zone, analyserLien(f.url, 'video'), f.url).catch(() => {});
+  }
+}
+
+async function renderLivraison(id) {
+  const admin = profil.role === 'admin';
+  const [{ data: p, error }, { data: fichiers }] = await Promise.all([
+    sb.from('projets').select('id, titre, type, mot_livraison, partage_token, partage_actif').eq('id', id).single(),
+    sb.from('fichiers').select('titre, url, categorie').eq('projet_id', id).eq('livrable', true).order('created_at'),
+  ]);
+  if (error) return showError(error);
+  const d = { titre: p.titre, type: p.type, mot: p.mot_livraison, fichiers: fichiers ?? [] };
+  const lien = (t) => `${location.origin}${location.pathname}#/partage/${t}`;
+
+  app.innerHTML = `
+    <a class="back" href="#/projet/${id}">← ${esc(p.titre)}</a>
+    ${livraisonHtml(d, { prive: true })}
+    <section class="section">
+      <p class="label">Partager avec vos proches</p>
+      <div class="card partage">
+        <p>${admin ? 'Le client peut créer un lien pour montrer sa livraison sans compte.' : 'Créez un lien pour montrer vos films et vos photos à votre famille, vos amis ou votre équipe, sans qu’ils aient besoin de compte. Vous pouvez le couper à tout moment.'}</p>
+        <div id="partage-zone">${p.partage_actif && p.partage_token
+          ? `<div class="lien-partage"><input readonly value="${esc(lien(p.partage_token))}"><button class="btn btn-sm" id="copier">Copier</button></div>
+             <div class="form-foot"><button class="btn-txt" id="couper">Désactiver le lien</button></div>`
+          : `<div class="form-foot"><button class="btn btn-line" id="activer">Créer un lien de partage</button></div>`}</div>
+      </div>
+    </section>
+    ${admin ? '' : `<section class="section">
+      <p class="label">Un mot pour nous ?</p>
+      <div class="card"><p>Votre avis compte énormément pour une petite équipe comme la nôtre. Dites-nous ce que vous en pensez dans les messages du projet.</p>
+      <div class="form-foot"><a class="btn btn-line" href="#/projet/${id}/messages">Nous écrire</a></div></div>
+    </section>`}`;
+
+  monterVideos(d);
+  const basculer = async (actif) => {
+    const { error } = await sb.rpc('partager_livraison', { p: id, actif });
+    if (error) return alert(error.message);
+    renderLivraison(id);
+  };
+  document.getElementById('activer')?.addEventListener('click', () => basculer(true));
+  document.getElementById('couper')?.addEventListener('click', () => basculer(false));
+  document.getElementById('copier')?.addEventListener('click', async (ev) => {
+    const champ = app.querySelector('.lien-partage input');
+    try { await navigator.clipboard.writeText(champ.value); } catch { champ.select(); document.execCommand('copy'); }
+    ev.target.textContent = 'Copié ✓';
+  });
+}
+
+// Page publique de partage : pas de compte, seulement ce que le client a choisi de montrer.
+async function renderPartage(token) {
+  window.scrollTo(0, 0);
+  const { data, error } = await sb.rpc('livraison_publique', { t: token });
+  if (error) return showError(error);
+  if (!data) {
+    app.innerHTML = `<p class="label rule">Partage</p><h1 class="h-l">Ce lien n’est plus <em>actif</em></h1>
+      <p class="lead">Demandez un nouveau lien à la personne qui vous l’a envoyé.</p>`;
+    return;
+  }
+  app.innerHTML = `${livraisonHtml(data)}
+    <section class="section signature">
+      <p class="label">Réalisé par</p>
+      <p class="h-m">Mackerprod · <em>vidéo, photo et contenu</em> à Cambrai</p>
+      <p class="lead">Avant les images, il y a vous.</p>
+      <div class="form-foot"><a class="btn" href="https://www.mackerprod.fr/" target="_blank" rel="noopener">Découvrir Mackerprod →</a></div>
+    </section>`;
+  monterVideos(data);
 }

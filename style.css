@@ -271,3 +271,23 @@ details.ajout[open] summary { margin-bottom: 4px; }
 .guide-wrap .equipe b { font-size: 1.15rem; }
 .guide-wrap .equipe span { font-size: .5rem; }
 .equipe { max-width: 720px; }
+
+/* Livraison (expérience 2) */
+.livraison-banniere { display: flex; align-items: center; gap: 16px; margin-top: 28px; padding: 20px 24px; text-decoration: none;
+  background: linear-gradient(90deg, rgba(148,30,40,.28), rgba(148,30,40,.06)); border: 1px solid rgba(173,37,49,.5); }
+.livraison-banniere strong { display: block; font: 400 1.5rem/1.2 var(--serif); margin-top: 6px; }
+.livraison-banniere .go { margin-left: auto; font: 500 .66rem/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--bronze); white-space: nowrap; }
+.livraison-hero { padding-top: 12px; }
+.livraison-hero .sous { display: block; margin-top: 10px; font: italic 300 .5em/1.2 var(--serif); color: var(--bronze); }
+.mot { margin: 36px 0 0; padding: 4px 0 4px 26px; border-left: 2px solid var(--red-hi); font: italic 300 clamp(1.3rem, 2.4vw, 1.7rem)/1.4 var(--serif); color: var(--text-2); max-width: 36em; }
+.mot cite { display: block; margin-top: 14px; font: 500 .62rem/1 var(--sans); letter-spacing: .24em; text-transform: uppercase; font-style: normal; color: var(--muted); }
+.galerie { columns: 3 220px; column-gap: 12px; }
+.galerie a { display: block; margin-bottom: 12px; break-inside: avoid; }
+.galerie img { display: block; width: 100%; height: auto; transition: opacity .2s; }
+.galerie a:hover img { opacity: .85; }
+.todo .tag { flex: none; }
+.lien-partage { display: flex; gap: 8px; margin-top: 16px; }
+.lien-partage input { flex: 1; min-width: 0; font-size: .85rem; }
+.partage p { color: var(--text-2); }
+.signature { border-top: 1px solid var(--line); padding-top: 40px; }
+.check.livrable { margin: 0; font: 400 .72rem/1 var(--sans); letter-spacing: .08em; text-transform: none; color: var(--bronze); }

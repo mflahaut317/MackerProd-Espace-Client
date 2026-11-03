@@ -14,6 +14,7 @@ export const EQUIPE = {
 export const SERVICES = {
   corporate: {
     label: 'Film d’entreprise & événement', cible: 'pro',
+    livraison: 'Votre film est prêt',
     equipe: ['mickael', 'maxence', 'delphine'],
     guide: [
       'Prévenir les personnes filmées et vérifier leurs disponibilités',
@@ -47,6 +48,7 @@ export const SERVICES = {
 
   immobilier: {
     label: 'Immobilier & drone', cible: 'pro',
+    livraison: 'Votre bien, en images',
     equipe: ['mickael', 'maxence', 'delphine'],
     guide: [
       'Ouvrir tous les volets et allumer toutes les lumières',
@@ -80,6 +82,7 @@ export const SERVICES = {
 
   frame2: {
     label: 'Frame² · contenu réseaux', cible: 'pro',
+    livraison: 'Vos contenus sont prêts',
     equipe: ['mickael', 'maxence', 'delphine'],
     guide: [
       'Prévoir 3 à 4 tenues différentes',
@@ -114,6 +117,7 @@ export const SERVICES = {
 
   site_web: {
     label: 'Site internet', cible: 'pro',
+    livraison: 'Votre site est prêt',
     equipe: ['mickael', 'maxence', 'delphine'],
     guide: [
       'Rassembler vos textes (présentation, services, tarifs)',
@@ -145,6 +149,7 @@ export const SERVICES = {
 
   mariage: {
     label: 'Mariage · film & photo', cible: 'particulier',
+    livraison: 'Votre mariage, en images',
     equipe: ['mickael', 'maxence', 'delphine'],
     guide: [
       'Nous envoyer le déroulé de la journée avec les horaires',
@@ -178,6 +183,7 @@ export const SERVICES = {
 
   evenement: {
     label: 'Événement familial', cible: 'particulier',
+    livraison: 'Vos souvenirs sont prêts',
     equipe: ['mickael', 'maxence', 'delphine'],
     guide: [
       'Nous envoyer le programme avec les horaires',
@@ -207,6 +213,7 @@ export const SERVICES = {
 
   seance_photo: {
     label: 'Séance photo · Stu’Dee', cible: 'particulier',
+    livraison: 'Vos photos sont prêtes',
     equipe: ['delphine'],
     guide: [
       'Choisir des tenues aux couleurs douces et assorties',
