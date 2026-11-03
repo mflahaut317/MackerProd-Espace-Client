@@ -86,6 +86,8 @@ function router() {
   if (r) return renderRevue(r[1], r[2]);
   const m = location.hash.match(/^#\/projet\/([0-9a-f-]{36})(?:\/(\w+))?$/);
   if (m) return renderProjet(m[1], m[2]);
+  const fc = location.hash.match(/^#\/client\/([0-9a-f-]{36})$/);
+  if (fc && profil.role === 'admin') return renderFicheClient(fc[1]);
   if (profil.role === 'admin') return renderAdmin();
   if (!profil.client_id) {
     app.innerHTML = `
@@ -336,7 +338,7 @@ async function renderProjet(id, onglet) {
 
   app.innerHTML = `
     <a class="back" href="#/">← ${admin ? 'Tableau de bord' : 'Mes projets'}</a>
-    <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ' · ' + esc(nomClient) + (p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : '') : ''}</p>
+    <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ` · <a href="#/client/${p.client_id}">${esc(nomClient)}${p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : ''}</a>` : ''}</p>
     <h1 class="h-l">${esc(p.titre)}</h1>
 
     ${(fichiers ?? []).some((f) => f.livrable) ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
@@ -524,33 +526,29 @@ async function renderProjet(id, onglet) {
   }));
 }
 
-// Tableau de bord admin (Maxence) ---------------------------------------------
+// Tableau de bord admin (Maxence) : priorités, atelier par étape, clients ----------
 
-async function renderAdmin() {
-  const [{ data: clients, error }, { data: messages }, { data: retours }] = await Promise.all([
-    sb.from('clients').select('*, projets(*, etapes(*))').order('created_at', { ascending: false }),
-    sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(500),
-    sb.from('retours').select('projet_id').eq('traite', false),
-  ]);
-  const { data: demandes } = await sb.from('demandes').select('*, clients(nom, email), projets(titre)').eq('traitee', false).order('created_at');
-  const nbRetours = (pid) => (retours ?? []).filter((r) => r.projet_id === pid).length;
-  if (error) return showError(error);
+const PHASES = [
+  ['Avant le tournage', [1, 2, 3]],
+  ['Tournage', [4]],
+  ['Post-production', [5]],
+  ['Livré · suivi', [6, 7]],
+];
+const initiales = (c) => (c.nom || c.email || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((x) => x[0].toUpperCase()).join('');
+const optionsServices = () => Object.entries(SERVICES).map(([k, v]) => `<option value="${k}">${esc(v.label)} (${v.cible === 'pro' ? 'pro' : 'particulier'})</option>`).join('');
 
-  const lignes = (clients ?? []).flatMap((c) => (c.projets ?? []).map((p) => {
-    const m = dernierMessage(messages, p.id);
-    return { c, p, e: etapeCourante(p.etapes), m, aRepondre: m && !m.par_admin, retours: nbRetours(p.id) };
-  })).sort((a, b) => ((b.aRepondre || b.retours > 0) - (a.aRepondre || a.retours > 0)) || (new Date(b.m?.created_at ?? 0) - new Date(a.m?.created_at ?? 0)));
-  const sansProjet = (clients ?? []).filter((c) => !c.projets?.length);
-  const nbRepondre = lignes.filter((l) => l.aRepondre).length;
-  const totalRetours = (retours ?? []).length;
-  const nbActifs = lignes.filter((l) => l.e?.statut !== 'termine').length;
-
-  // Les 30 prochains jours : rendez-vous fixés et anniversaires de mariage.
+// Les 30 prochains jours : rendez-vous fixés et anniversaires de mariage.
+function aVenir(lignes) {
   const auj = aujourdhui();
   const dans30 = new Date(Date.now() + 30 * 864e5).toLocaleDateString('sv-SE');
-  const avenir = lignes.flatMap(({ c, p }) => {
+  return lignes.flatMap(({ c, p }) => {
     const out = [];
     if (p.prochain_rdv && p.prochain_rdv >= auj && p.prochain_rdv <= dans30) out.push({ d: p.prochain_rdv, c, p, quoi: p.prochain_rdv_note || 'Rendez-vous' });
+    for (const e of p.etapes ?? []) {
+      if (e.date_prevue && e.statut !== 'termine' && e.date_prevue >= auj && e.date_prevue <= dans30) {
+        out.push({ d: e.date_prevue, c, p, quoi: serviceDe(p).etapes[e.numero]?.titre });
+      }
+    }
     const jourJ = p.type === 'mariage' && (p.etapes ?? []).find((e) => e.numero === 4)?.date_prevue;
     if (jourJ && jourJ < auj) {
       let an = Number(auj.slice(0, 4));
@@ -561,46 +559,90 @@ async function renderAdmin() {
     }
     return out;
   }).sort((a, b) => a.d.localeCompare(b.d));
+}
+
+async function renderAdmin() {
+  const [{ data: clients, error }, { data: messages }, { data: retours }, { data: demandes }, { data: livrables }] = await Promise.all([
+    sb.from('clients').select('*, projets(*, etapes(*))').order('created_at', { ascending: false }),
+    sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(500),
+    sb.from('retours').select('projet_id, fichier_id').eq('traite', false),
+    sb.from('demandes').select('*, clients(nom, email), projets(titre)').eq('traitee', false).order('created_at'),
+    sb.from('fichiers').select('projet_id').eq('livrable', true),
+  ]);
+  if (error) return showError(error);
+
+  const lignes = (clients ?? []).flatMap((c) => (c.projets ?? []).map((p) => {
+    const m = dernierMessage(messages, p.id);
+    return { c, p, e: etapeCourante(p.etapes), m, aRepondre: m && !m.par_admin,
+      retours: (retours ?? []).filter((r) => r.projet_id === p.id).length,
+      livre: (livrables ?? []).some((f) => f.projet_id === p.id) };
+  }));
+
+  // Ce qui attend l'équipe, du plus urgent au moins urgent.
+  const prio = [
+    ...lignes.filter((l) => l.aRepondre).map((l) => ({ tag: 'Message', href: `#/projet/${l.p.id}/messages`,
+      titre: `Répondre à ${l.c.nom || l.c.email}`, sub: `${l.p.titre} · ${dateFr(l.m.created_at)}` })),
+    ...lignes.filter((l) => l.retours).map((l) => ({ tag: 'Retours', href: `#/projet/${l.p.id}/fichiers`,
+      titre: `${l.retours} retour${l.retours > 1 ? 's' : ''} à traiter`, sub: `${l.c.nom || l.c.email} · ${l.p.titre}` })),
+    ...(demandes ?? []).map((x) => ({ tag: DEMANDES[x.type], demande: x.id, href: `#/client/${x.client_id}`,
+      titre: `${x.clients?.nom || x.clients?.email}${x.type === 'parrainage' ? ` recommande ${x.details?.nom || 'un proche'}` : x.type === 'nouveau_projet' ? ' a un nouveau projet' : ' souhaite ' + (x.type === 'album' ? 'un album' : 'des tirages')}`,
+      sub: [x.details?.contact, x.details?.message].filter(Boolean).join(' · ') || dateFr(x.created_at) })),
+  ];
+  const avenir = aVenir(lignes);
+  const heure = new Date().getHours();
+  const auj = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   app.innerHTML = `
-    <p class="label rule">Administration</p>
-    <h1 class="h-l">Tableau de <em>bord</em></h1>
+    <p class="label rule">L’atelier Mackerprod · ${esc(auj)}</p>
+    <h1 class="h-l">${heure < 18 ? 'Bonjour' : 'Bonsoir'}, <em>l’équipe</em></h1>
+    <p class="lead">${prio.length ? `${prio.length} chose${prio.length > 1 ? 's' : ''} vous attend${prio.length > 1 ? 'ent' : ''}` : 'Rien d’urgent'}, ${lignes.filter((l) => l.e?.numero < 6).length} projet${lignes.filter((l) => l.e?.numero < 6).length > 1 ? 's' : ''} en production et ${avenir.length} rendez-vous dans les 30 jours.</p>
 
-    <div class="stats stats-4">
-      <div><strong class="${nbRepondre ? 'red' : ''}">${nbRepondre}</strong><span>message${nbRepondre > 1 ? 's' : ''} client en attente de réponse</span></div>
-      <div><strong class="${totalRetours ? 'red' : ''}">${totalRetours}</strong><span>retour${totalRetours > 1 ? 's' : ''} sur vidéo ou maquette à traiter</span></div>
-      <div><strong>${nbActifs}</strong><span>projet${nbActifs > 1 ? 's' : ''} en cours</span></div>
-      <div><strong>${clients?.length ?? 0}</strong><span>client${(clients?.length ?? 0) > 1 ? 's' : ''}</span></div>
+    <div class="admin-haut section">
+      <section>
+        <p class="label ${prio.length ? 'red' : ''}">À faire</p>
+        <div class="todo">${prio.length ? prio.map((t) => `
+          <div class="prio"><a href="${t.href}"><span class="tag">${esc(t.tag)}</span>
+            <span><strong>${esc(t.titre)}</strong><span class="sub">${esc(t.sub)}</span></span></a>
+            ${t.demande ? `<button class="btn btn-line btn-sm" data-traitee="${t.demande}">Traitée</button>` : '<span class="go">→</span>'}</div>`).join('')
+          : '<div><span class="num ok">✓</span><span><strong>Tout est à jour</strong><span class="sub">Aucun message, retour ou demande en attente.</span></span></div>'}
+        </div>
+      </section>
+      <section>
+        <p class="label">Agenda · 30 jours</p>
+        <div class="agenda">${avenir.length ? avenir.map((a) => `
+          <a href="#/projet/${a.p.id}"><span class="jour"><b>${Number(a.d.slice(8))}</b>${new Date(a.d + 'T12:00:00').toLocaleDateString('fr-FR', { month: 'short' })}</span>
+            <span><strong>${esc(a.quoi)}</strong><span class="sub">${esc(a.c.nom || a.c.email)} · ${esc(a.p.titre)}</span></span></a>`).join('')
+          : '<p class="empty">Aucune date prévue. Fixez les dates dans chaque projet.</p>'}</div>
+      </section>
     </div>
 
-    ${(demandes ?? []).length ? `<section class="section">
-      <p class="label red">Demandes clients</p>
-      <ul class="demandes">${demandes.map((x) => `<li><span class="tag">${DEMANDES[x.type]}</span>
-        <span><b>${esc(x.clients?.nom || x.clients?.email)}</b>${x.projets ? ` · ${esc(x.projets.titre)}` : ''}<br>
-        <span class="muted small">${esc([x.details?.nom, x.details?.contact, x.details?.message].filter(Boolean).join(' · '))}</span></span>
-        <span class="meta">${dateFr(x.created_at)}</span><button class="btn btn-line btn-sm" data-traitee="${x.id}">Traitée</button></li>`).join('')}</ul>
-    </section>` : ''}
-
-    ${avenir.length ? `<section class="section">
-      <p class="label">Dans les 30 prochains jours</p>
-      <div class="todo">${avenir.map((a) => `<a href="#/projet/${a.p.id}"><span class="num">${Number(a.d.slice(8))}</span>
-        <span><strong>${esc(a.quoi)} · ${esc(jourFr(a.d))}</strong><span class="sub">${esc(a.c.nom || a.c.email)} · ${esc(a.p.titre)}</span></span><span class="go">→</span></a>`).join('')}</div>
-    </section>` : ''}
+    <section class="section">
+      <p class="label">L’atelier</p>
+      ${lignes.length ? `<div class="atelier">${PHASES.map(([titre, nums]) => {
+        const items = lignes.filter((l) => nums.includes(l.e?.numero));
+        return `<div class="colonne"><p class="col-titre">${titre}<span>${items.length}</span></p>
+          ${items.map(({ c, p, e, aRepondre, retours: nr, livre }) => {
+            const date = e?.date_prevue && e.statut !== 'termine' ? e.date_prevue : p.prochain_rdv;
+            return `<a class="carte-projet ${aRepondre || nr ? 'alerte' : ''}" href="#/projet/${p.id}">
+              <span class="label bronze">${esc(serviceDe(p).label)}</span>
+              <strong>${esc(p.titre)}</strong>
+              <span class="qui"><i>${esc(initiales(c))}</i>${esc(c.nom || c.email)}</span>
+              <span class="etat">${e ? `${e.numero}. ${esc(serviceDe(p).etapes[e.numero]?.titre)}` : ''}${date ? ` · ${esc(jourCourt(date))}` : ''}</span>
+              <span class="badges">${aRepondre ? '<span class="badge red">À répondre</span>' : ''}${nr ? `<span class="badge line">${nr} retour${nr > 1 ? 's' : ''}</span>` : ''}${livre ? '<span class="badge ok">Livré</span>' : ''}</span>
+            </a>`;
+          }).join('') || '<p class="vide">—</p>'}
+        </div>`;
+      }).join('')}</div>` : '<p class="empty">Aucun projet pour l’instant. Créez votre premier client ci-dessous.</p>'}
+    </section>
 
     <section class="section">
-      <p class="label">Projets</p>
-      ${lignes.length ? `<table class="table">
-        <thead><tr><th>Client</th><th>Projet</th><th>Étape</th><th>Dernier message</th><th></th></tr></thead>
-        <tbody>${lignes.map(({ c, p, e, m, aRepondre, retours: nr }) => `
-          <tr class="lien" data-href="#/projet/${p.id}${aRepondre ? '/messages' : ''}">
-            <td class="client"><b>${esc(c.nom || c.email)}</b><span>${esc(c.entreprise || c.email)}</span></td>
-            <td>${esc(p.titre)}<span class="muted small" style="display:block">${esc(serviceDe(p).label)}</span></td>
-            <td>${e ? `${e.numero}. ${esc(serviceDe(p).etapes[e.numero]?.titre)}` : ''}</td>
-            <td class="muted small">${m ? `${m.par_admin ? 'Vous' : 'Client'} · ${dateFr(m.created_at)}` : '—'}</td>
-            <td><div class="badges">${aRepondre ? '<span class="badge red">À répondre</span>' : ''}${nr ? `<span class="badge line">${nr} retour${nr > 1 ? 's' : ''}</span>` : ''}</div></td>
-          </tr>`).join('')}
-        </tbody></table>` : '<p class="empty">Aucun projet pour l’instant. Créez votre premier client ci-dessous.</p>'}
-      ${sansProjet.length ? `<p class="muted small" style="margin-top:16px">Clients sans projet : ${sansProjet.map((c) => esc(c.nom || c.email)).join(', ')}</p>` : ''}
+      <p class="label">Clients</p>
+      <div class="clients">${(clients ?? []).map((c) => {
+        const derniers = (messages ?? []).filter((m) => (c.projets ?? []).some((p) => p.id === m.projet_id));
+        return `<a class="carte-client" href="#/client/${c.id}"><i>${esc(initiales(c))}</i>
+          <span><strong>${esc(c.nom || c.email)}</strong><span class="sub">${esc(c.entreprise || c.email)}</span>
+          <span class="sub">${c.projets?.length ?? 0} projet${(c.projets?.length ?? 0) > 1 ? 's' : ''}${derniers[0] ? ` · actif ${dateFr(derniers[0].created_at)}` : ''}</span></span></a>`;
+      }).join('')}</div>
     </section>
 
     <section class="section">
@@ -614,45 +656,143 @@ async function renderAdmin() {
             <div><label for="n_nom">Nom et prénom</label><input id="n_nom" name="nom"></div>
             <div><label for="n_ent">Entreprise</label><input id="n_ent" name="entreprise"></div>
             <div><label for="n_projet">Premier projet</label><input id="n_projet" name="projet" placeholder="Film d’entreprise 2027"></div>
-            <div><label for="n_type">Prestation</label><select id="n_type" name="type">${Object.entries(SERVICES).map(([k, v]) => `<option value="${k}">${esc(v.label)} (${v.cible === 'pro' ? 'pro' : 'particulier'})</option>`).join('')}</select></div>
+            <div><label for="n_type">Prestation</label><select id="n_type" name="type">${optionsServices()}</select></div>
           </div>
           <div class="form-foot"><button class="btn">Créer le client</button></div>
         </form>
       </details>
-      ${clients?.length ? `<details class="ajout">
-        <summary class="btn btn-line">+ Projet pour un client existant</summary>
-        <form id="ajout-projet" class="card grid">
-          <div><label for="p_client">Client</label><select id="p_client" name="client_id">
-            ${clients.map((c) => `<option value="${c.id}">${esc(c.nom || c.email)}</option>`).join('')}</select></div>
-          <div><label for="p_titre">Nom du projet</label><input id="p_titre" name="titre" required></div>
-          <div><label for="p_type">Prestation</label><select id="p_type" name="type">${Object.entries(SERVICES).map(([k, v]) => `<option value="${k}">${esc(v.label)} (${v.cible === 'pro' ? 'pro' : 'particulier'})</option>`).join('')}</select></div>
-          <div class="full form-foot"><button class="btn">Créer le projet</button></div>
-        </form>
-      </details>` : ''}
     </section>`;
 
-  app.querySelectorAll('tr[data-href]').forEach((tr) => (tr.onclick = () => (location.hash = tr.dataset.href)));
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
     const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
     if (error) return alert(error.message);
     renderAdmin();
   }));
-
   document.getElementById('nouveau').onsubmit = async (ev) => {
     ev.preventDefault();
     const { email, nom, entreprise, projet, type } = Object.fromEntries(new FormData(ev.target));
     const { data: c, error } = await sb.from('clients').insert({ email, nom, entreprise }).select().single();
     if (error) return alert(error.message);
     if (projet) await sb.from('projets').insert({ client_id: c.id, titre: projet, type });
-    renderAdmin();
+    location.hash = `#/client/${c.id}`;
   };
+}
 
-  const ajout = document.getElementById('ajout-projet');
-  if (ajout) ajout.onsubmit = async (ev) => {
-    ev.preventDefault();
-    const { error } = await sb.from('projets').insert(Object.fromEntries(new FormData(ajout)));
+// Fiche client (admin) : tout sur une personne, en une page ------------------------
+async function renderFicheClient(id) {
+  const [{ data: c, error }, { data: note }, { data: demandes }] = await Promise.all([
+    sb.from('clients').select('*, projets(*, etapes(*))').eq('id', id).single(),
+    sb.from('notes_internes').select('*').eq('client_id', id).maybeSingle(),
+    sb.from('demandes').select('*').eq('client_id', id).order('created_at', { ascending: false }),
+  ]);
+  if (error) return showError(error);
+  const projets = c.projets ?? [];
+  const ids = projets.map((p) => p.id);
+  const titre = (pid) => projets.find((p) => p.id === pid)?.titre ?? '';
+  const [{ data: messages }, { data: fichiers }, { data: retours }] = ids.length ? await Promise.all([
+    sb.from('messages').select('*').in('projet_id', ids).order('created_at', { ascending: false }).limit(30),
+    sb.from('fichiers').select('*').in('projet_id', ids).order('created_at', { ascending: false }).limit(30),
+    sb.from('retours').select('*').in('projet_id', ids).order('created_at', { ascending: false }).limit(30),
+  ]) : [{}, {}, {}];
+
+  // Historique : tout ce qui s'est passé, le plus récent en haut.
+  const fil = [
+    ...(messages ?? []).map((m) => ({ d: m.created_at, tag: 'Message', qui: m.par_admin ? 'Mackerprod' : 'Client', txt: m.contenu, href: `#/projet/${m.projet_id}/messages`, pid: m.projet_id })),
+    // Fichiers ajoutés ensemble (même projet, même heure) : une seule ligne.
+    ...Object.values((fichiers ?? []).reduce((g, f) => {
+      const k = `${f.projet_id}|${f.livrable}|${f.par_admin}|${f.created_at.slice(0, 13)}`;
+      (g[k] ??= []).push(f);
+      return g;
+    }, {})).map((fs) => ({ d: fs[0].created_at, tag: fs[0].livrable ? 'Livraison' : 'Fichier', qui: fs[0].par_admin ? 'Mackerprod' : 'Client',
+      txt: fs.length > 1 ? `${fs.length} fichiers : ${fs.map((f) => f.titre).join(', ')}` : fs[0].titre,
+      href: fs[0].livrable ? `#/projet/${fs[0].projet_id}/livraison` : `#/projet/${fs[0].projet_id}/fichiers`, pid: fs[0].projet_id })),
+    ...(retours ?? []).filter((r) => !r.par_admin).map((r) => ({ d: r.created_at, tag: r.type === 'validation' ? 'Validation' : 'Retour', qui: 'Client', txt: r.type === 'validation' ? 'Version validée' : r.contenu, href: `#/projet/${r.projet_id}/revue/${r.fichier_id}`, pid: r.projet_id })),
+    ...(demandes ?? []).map((x) => ({ d: x.created_at, tag: DEMANDES[x.type], qui: 'Client', txt: [x.details?.nom, x.details?.message].filter(Boolean).join(' · '), href: '', pid: x.projet_id })),
+  ].sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 25);
+  const depuis = new Date(c.created_at || Date.now()).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+  app.innerHTML = `
+    <a class="back" href="#/">← Tableau de bord</a>
+    <div class="fiche-tete">
+      <i class="monogramme">${esc(initiales(c))}</i>
+      <div>
+        <p class="label rule">Client depuis ${esc(depuis)}</p>
+        <h1 class="h-l">${esc(c.nom || c.email)}</h1>
+        ${c.entreprise ? `<p class="h-m sous">${esc(c.entreprise)}</p>` : ''}
+        <div class="actions">
+          <a class="btn btn-sm" href="mailto:${esc(c.email)}">Écrire un e-mail</a>
+          ${c.telephone ? `<a class="btn btn-line btn-sm" href="tel:${esc(c.telephone.replace(/\s/g, ''))}">Appeler · ${esc(c.telephone)}</a>` : ''}
+          <button class="btn btn-line btn-sm" id="exporter">Exporter le dossier</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fiche-grille">
+      <div>
+        <section class="section">
+          <p class="label">Projets</p>
+          <div class="projets">${projets.map((p) => `
+            <a class="projet" href="#/projet/${p.id}">
+              <div class="projet-top"><div><p class="label bronze">${esc(serviceDe(p).label)}</p><h2 class="h-m">${esc(p.titre)}</h2></div><span class="ouvrir">Ouvrir →</span></div>
+              ${parcoursHtml(p)}
+            </a>`).join('') || '<p class="empty">Aucun projet.</p>'}
+          </div>
+          <details class="ajout">
+            <summary class="btn btn-line btn-sm">+ Nouveau projet</summary>
+            <form id="ajout-projet" class="card grid">
+              <div><label for="p_titre">Nom du projet</label><input id="p_titre" name="titre" required></div>
+              <div><label for="p_type">Prestation</label><select id="p_type" name="type">${optionsServices()}</select></div>
+              <div class="full form-foot"><button class="btn">Créer le projet</button></div>
+            </form>
+          </details>
+        </section>
+
+        <section class="section">
+          <p class="label">Historique</p>
+          <ol class="historique">${fil.map((h) => `<li>
+            <span class="quand">${dateFr(h.d)}</span>
+            <div><span class="tag">${esc(h.tag)}</span> <b>${esc(h.qui)}</b>${h.pid ? ` <span class="muted small">· ${esc(titre(h.pid))}</span>` : ''}
+              <p>${h.href ? `<a href="${h.href}">${esc((h.txt || '').slice(0, 220))}</a>` : esc((h.txt || '').slice(0, 220))}</p></div></li>`).join('')
+            || '<li><span class="empty">Rien pour l’instant.</span></li>'}</ol>
+        </section>
+      </div>
+
+      <aside>
+        <section class="section">
+          <p class="label">Note interne</p>
+          <form id="note-interne" class="card note">
+            <textarea name="texte" rows="6" placeholder="Ce qu’il faut savoir : ses préférences, comment il nous a connus, le prénom de ses enfants…">${esc(note?.texte)}</textarea>
+            <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div>
+            <p class="muted small">Visible uniquement par l’équipe Mackerprod.</p>
+          </form>
+        </section>
+        ${(demandes ?? []).length ? `<section class="section">
+          <p class="label">Demandes</p>
+          <ul class="demandes">${demandes.map((x) => `<li><span class="tag">${DEMANDES[x.type]}</span>
+            <span>${esc(x.details?.nom || x.details?.message || '')}</span>
+            ${x.traitee ? '<span class="badge ok">Traitée</span>' : `<button class="btn btn-line btn-sm" data-traitee="${x.id}">Traitée</button>`}</li>`).join('')}</ul>
+        </section>` : ''}
+        <section class="section">
+          <p class="label">Coordonnées</p>
+          <p class="small"><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></p>
+          ${formHtml('fiche', CHAMPS_FICHE, c, ['notes', 'Remarques du client'])}
+        </section>
+      </aside>
+    </div>`;
+
+  document.getElementById('exporter').onclick = () => exporterDossier(id);
+  bindForm('note-interne', ({ texte }) => sb.from('notes_internes').upsert({ client_id: id, texte }));
+  bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', id));
+  app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
+    const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
     if (error) return alert(error.message);
-    renderAdmin();
+    renderFicheClient(id);
+  }));
+  document.getElementById('ajout-projet').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const { data: p, error } = await sb.from('projets').insert({ client_id: id, ...Object.fromEntries(new FormData(ev.target)) }).select().single();
+    if (error) return alert(error.message);
+    location.hash = `#/projet/${p.id}`;
   };
 }
 
