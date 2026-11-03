@@ -1,0 +1,6 @@
+// Déploiement sur Cloudflare (Workers, fichiers statiques uniquement).
+{
+  "name": "mackerprod-espace-client",
+  "compatibility_date": "2025-10-01",
+  "assets": { "directory": "." }
+}
