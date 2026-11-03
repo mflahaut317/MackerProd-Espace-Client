@@ -1,5 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { SERVICES, serviceDe } from './services.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const app = document.getElementById('app');
@@ -8,16 +9,6 @@ const who = document.getElementById('who');
 
 // Contenu ----------------------------------------------------------------------
 
-// Ce que veut dire chaque étape, et ce qu'on attend du client à ce moment-là.
-const ETAPES = {
-  1: { titre: 'Premier contact', texte: 'On échange sur votre projet, vos besoins et vos envies.', attendu: 'Rien à faire : on vous recontacte sous 24 h ouvrées.' },
-  2: { titre: 'Signature', texte: 'Vous recevez le devis, puis on signe ensemble.', attendu: 'Relire et signer le devis.' },
-  3: { titre: 'Lancement', texte: 'On rassemble tout ce qu’il faut pour préparer le tournage et le site.', attendu: 'Remplir la fiche de lancement du projet.', onglet: 'lancement' },
-  4: { titre: 'Tournage', texte: 'On vient filmer et photographier sur place.', attendu: 'Préparer les lieux et les personnes à filmer.' },
-  5: { titre: 'Création du site', texte: 'On monte les vidéos et on construit votre site.', attendu: 'Relire la maquette et laisser vos retours.', onglet: 'messages' },
-  6: { titre: 'Mise en ligne', texte: 'Votre site est publié sur votre nom de domaine.', attendu: 'Vérifier le site en ligne.' },
-  7: { titre: 'Suivi', texte: 'On reste disponibles pour les ajustements.', attendu: 'Nous écrire si quelque chose doit évoluer.', onglet: 'messages' },
-};
 const STATUTS = { a_venir: 'À venir', en_cours: 'En cours', termine: 'Terminé' };
 const CHAMPS_FICHE = [
   ['nom', 'Nom et prénom'], ['entreprise', 'Entreprise'], ['telephone', 'Téléphone'],
@@ -26,17 +17,6 @@ const CHAMPS_FICHE = [
   ['registrar', 'Domaine enregistré chez', 'OVH, Gandi, IONOS…'], ['reseaux_sociaux', 'Réseaux sociaux', 'Liens Instagram, Facebook…'],
 ];
 const FICHE_ESSENTIEL = ['nom', 'telephone', 'adresse'];
-const CHAMPS_LANCEMENT = [
-  ['objectifs', 'Objectifs du projet', 'Que doit vous apporter ce site ou cette vidéo ?'],
-  ['cible', 'Clientèle visée', 'À qui vous adressez-vous ?'],
-  ['pages_souhaitees', 'Pages souhaitées sur le site', 'Accueil, services, galerie, contact…'],
-  ['references_style', 'Ce qui vous plaît', 'Liens de sites ou de vidéos que vous aimez.'],
-  ['couleurs_logo', 'Couleurs, logo, charte'],
-  ['contenus_fournis', 'Ce que vous avez déjà', 'Textes, photos, vidéos existantes.'],
-  ['lieu_tournage', 'Lieu du tournage'],
-  ['dates_tournage', 'Dates possibles pour le tournage'],
-  ['contraintes', 'Contraintes', 'Délais, accès, horaires, budget…'],
-];
 const REVUE = ['video', 'maquette'];
 const CATEGORIES = { video: 'Vidéo', photo: 'Photo', document: 'Document', maquette: 'Maquette', autre: 'Autre' };
 
@@ -142,7 +122,7 @@ async function renderClient(clientId) {
   const [{ data: fiche, error }, { data: projets }, { data: lancements }, { data: messages }, { data: fichiers }, { data: retours }] = await Promise.all([
     sb.from('clients').select('*').eq('id', clientId).single(),
     sb.from('projets').select('*, etapes(*)').eq('client_id', clientId).order('created_at'),
-    sb.from('lancements').select('projet_id, objectifs'),
+    sb.from('lancements').select('projet_id, reponses'),
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(200),
     sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin').in('categorie', ['video', 'maquette']),
     sb.from('retours').select('fichier_id, type'),
@@ -161,8 +141,8 @@ async function renderClient(clientId) {
     if (m?.par_admin) todo.push({ href: `#/projet/${p.id}/messages`, titre: 'Nouveau message de Mackerprod', sub: `${p.titre} · ${dateFr(m.created_at)}` });
     const e = etapeCourante(p.etapes);
     const lanc = (lancements ?? []).find((l) => l.projet_id === p.id);
-    if (e && e.numero >= 3 && !rempli(lanc?.objectifs)) {
-      todo.push({ href: `#/projet/${p.id}/lancement`, titre: 'Remplir la fiche de lancement', sub: `${p.titre} · nécessaire pour préparer le tournage` });
+    if (e && e.numero >= 3 && !Object.values(lanc?.reponses ?? {}).some(rempli)) {
+      todo.push({ href: `#/projet/${p.id}/lancement`, titre: 'Remplir la fiche de préparation', sub: `${p.titre} · pour que tout soit prêt le jour du tournage` });
     }
   }
   const manquants = FICHE_ESSENTIEL.filter((k) => !rempli(fiche[k]));
@@ -187,8 +167,8 @@ async function renderClient(clientId) {
       <div class="projets">
         ${(projets ?? []).map((p) => `
           <a class="projet" href="#/projet/${p.id}">
-            <div class="projet-top"><h2 class="h-m">${esc(p.titre)}</h2><span class="ouvrir">Ouvrir le projet →</span></div>
-            ${parcoursHtml(p.etapes)}
+            <div class="projet-top"><div><p class="label bronze">${esc(serviceDe(p).label)}</p><h2 class="h-m">${esc(p.titre)}</h2></div><span class="ouvrir">Ouvrir le projet →</span></div>
+            ${parcoursHtml(p)}
           </a>`).join('') || '<p class="empty">Aucun projet pour l’instant.</p>'}
       </div>
     </section>
@@ -212,11 +192,12 @@ async function renderClient(clientId) {
 
 // Morceaux réutilisés ----------------------------------------------------------
 
-function parcoursHtml(etapes, editable = false, projetId = '') {
-  return `<ol class="parcours">${tri(etapes).map((e) => `
+function parcoursHtml(p, editable = false) {
+  const projetId = p.id, svc = serviceDe(p);
+  return `<ol class="parcours">${tri(p.etapes).map((e) => `
     <li class="${e.statut}">
       <span class="n">${e.numero}</span>
-      <span class="t">${esc(ETAPES[e.numero]?.titre)}</span>
+      <span class="t">${esc(svc.etapes[e.numero]?.titre)}</span>
       ${editable
         ? `<select data-projet="${projetId}" data-numero="${e.numero}" aria-label="Statut de l’étape ${e.numero}">${Object.entries(STATUTS).map(([v, t]) =>
             `<option value="${v}" ${v === e.statut ? 'selected' : ''}>${t}</option>`).join('')}</select>`
@@ -269,22 +250,24 @@ async function renderProjet(id, onglet) {
   };
 
   const e = etapeCourante(p.etapes);
-  const info = ETAPES[e?.numero] ?? {};
+  const svc = serviceDe(p);
+  const info = svc.etapes[e?.numero] ?? {};
+  const reponses = lancement?.reponses ?? {};
   const dernier = (messages ?? []).at(-1);
   const attendReponse = dernier && dernier.par_admin !== admin;
-  const lancementVide = !CHAMPS_LANCEMENT.some(([k]) => rempli(lancement?.[k]));
+  const lancementVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
   const onglets = [
     ['avancement', 'Avancement'],
     ['messages', 'Messages', messages?.length, attendReponse],
     ['fichiers', 'Fichiers', fichiers?.length, admin && (retours ?? []).some((r) => !r.traite)],
-    ['lancement', 'Fiche de lancement', null, lancementVide && e?.numero >= 3],
+    ['lancement', 'Fiche de préparation', null, lancementVide && e?.numero >= 3],
   ];
   const actif = onglets.some(([k]) => k === onglet) ? onglet : 'avancement';
   const nomClient = p.clients?.nom || p.clients?.email || 'Client';
 
   app.innerHTML = `
     <a class="back" href="#/">← ${admin ? 'Tableau de bord' : 'Mes projets'}</a>
-    <p class="label rule" style="margin-top:28px">${admin ? esc(nomClient) + (p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : '') : 'Projet'}</p>
+    <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ' · ' + esc(nomClient) + (p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : '') : ''}</p>
     <h1 class="h-l">${esc(p.titre)}</h1>
 
     <nav class="tabs" role="tablist">
@@ -304,7 +287,7 @@ async function renderProjet(id, onglet) {
       </div>
       <div class="section" style="margin-top:40px">
         <p class="label">Les 7 étapes${admin ? ' · modifiez le statut ici' : ''}</p>
-        ${parcoursHtml(p.etapes, admin, p.id)}
+        ${parcoursHtml(p, admin)}
       </div>
       ${admin && p.clients ? `<div class="section"><p class="label">Contact</p>
         <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p>
@@ -355,8 +338,8 @@ async function renderProjet(id, onglet) {
     </section>
 
     <section class="panel" data-panel="lancement">
-      <p class="panel-intro">Tout ce qu’il nous faut pour préparer le tournage et le site. Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
-      ${formHtml('lancement', CHAMPS_LANCEMENT, lancement)}
+      <p class="panel-intro">Tout ce qu’il nous faut pour préparer ${svc.cible === 'particulier' ? 'ce grand moment' : 'le tournage'}. Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
+      ${formHtml('lancement', svc.fiche, reponses)}
     </section>`;
 
   // Onglets
@@ -382,7 +365,7 @@ async function renderProjet(id, onglet) {
     }));
   }
 
-  bindForm('lancement', (maj) => sb.from('lancements').upsert({ projet_id: id, ...maj }));
+  bindForm('lancement', (maj) => sb.from('lancements').upsert({ projet_id: id, reponses: { ...reponses, ...maj } }));
 
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
     ev.preventDefault();
@@ -447,10 +430,10 @@ async function renderAdmin() {
         <tbody>${lignes.map(({ c, p, e, m, aRepondre, retours: nr }) => `
           <tr class="lien" data-href="#/projet/${p.id}${aRepondre ? '/messages' : ''}">
             <td class="client"><b>${esc(c.nom || c.email)}</b><span>${esc(c.entreprise || c.email)}</span></td>
-            <td>${esc(p.titre)}</td>
-            <td>${e ? `${e.numero}. ${esc(ETAPES[e.numero]?.titre)}` : ''}</td>
+            <td>${esc(p.titre)}<span class="muted small" style="display:block">${esc(serviceDe(p).label)}</span></td>
+            <td>${e ? `${e.numero}. ${esc(serviceDe(p).etapes[e.numero]?.titre)}` : ''}</td>
             <td class="muted small">${m ? `${m.par_admin ? 'Vous' : 'Client'} · ${dateFr(m.created_at)}` : '—'}</td>
-            <td class="badges">${aRepondre ? '<span class="badge red">À répondre</span>' : ''}${nr ? `<span class="badge line">${nr} retour${nr > 1 ? 's' : ''}</span>` : ''}</td>
+            <td><div class="badges">${aRepondre ? '<span class="badge red">À répondre</span>' : ''}${nr ? `<span class="badge line">${nr} retour${nr > 1 ? 's' : ''}</span>` : ''}</div></td>
           </tr>`).join('')}
         </tbody></table>` : '<p class="empty">Aucun projet pour l’instant. Créez votre premier client ci-dessous.</p>'}
       ${sansProjet.length ? `<p class="muted small" style="margin-top:16px">Clients sans projet : ${sansProjet.map((c) => esc(c.nom || c.email)).join(', ')}</p>` : ''}
@@ -466,7 +449,8 @@ async function renderAdmin() {
             <div><label for="n_email">E-mail du client</label><input id="n_email" name="email" type="email" required></div>
             <div><label for="n_nom">Nom et prénom</label><input id="n_nom" name="nom"></div>
             <div><label for="n_ent">Entreprise</label><input id="n_ent" name="entreprise"></div>
-            <div><label for="n_projet">Premier projet</label><input id="n_projet" name="projet" placeholder="Site + vidéo de présentation"></div>
+            <div><label for="n_projet">Premier projet</label><input id="n_projet" name="projet" placeholder="Film d’entreprise 2027"></div>
+            <div><label for="n_type">Prestation</label><select id="n_type" name="type">${Object.entries(SERVICES).map(([k, v]) => `<option value="${k}">${esc(v.label)} (${v.cible === 'pro' ? 'pro' : 'particulier'})</option>`).join('')}</select></div>
           </div>
           <div class="form-foot"><button class="btn">Créer le client</button></div>
         </form>
@@ -477,6 +461,7 @@ async function renderAdmin() {
           <div><label for="p_client">Client</label><select id="p_client" name="client_id">
             ${clients.map((c) => `<option value="${c.id}">${esc(c.nom || c.email)}</option>`).join('')}</select></div>
           <div><label for="p_titre">Nom du projet</label><input id="p_titre" name="titre" required></div>
+          <div><label for="p_type">Prestation</label><select id="p_type" name="type">${Object.entries(SERVICES).map(([k, v]) => `<option value="${k}">${esc(v.label)} (${v.cible === 'pro' ? 'pro' : 'particulier'})</option>`).join('')}</select></div>
           <div class="full form-foot"><button class="btn">Créer le projet</button></div>
         </form>
       </details>` : ''}
@@ -486,10 +471,10 @@ async function renderAdmin() {
 
   document.getElementById('nouveau').onsubmit = async (ev) => {
     ev.preventDefault();
-    const { email, nom, entreprise, projet } = Object.fromEntries(new FormData(ev.target));
+    const { email, nom, entreprise, projet, type } = Object.fromEntries(new FormData(ev.target));
     const { data: c, error } = await sb.from('clients').insert({ email, nom, entreprise }).select().single();
     if (error) return alert(error.message);
-    if (projet) await sb.from('projets').insert({ client_id: c.id, titre: projet });
+    if (projet) await sb.from('projets').insert({ client_id: c.id, titre: projet, type });
     renderAdmin();
   };
 
@@ -745,8 +730,9 @@ td{padding:4px 0}li{margin:6px 0}.m{border-left:3px solid #c9a27a;padding:6px 12
 ${(projets ?? []).map((p) => {
   const lanc = Array.isArray(p.lancements) ? p.lancements[0] : p.lancements;
   return `<h2>Projet : ${esc(p.titre)}</h2>
-  <h3>Avancement</h3><ol>${tri(p.etapes).map((e) => `<li>${esc(ETAPES[e.numero]?.titre)} : ${STATUTS[e.statut]}</li>`).join('')}</ol>
-  ${lanc ? `<h3>Fiche de lancement</h3><table>${CHAMPS_LANCEMENT.map(([k, l]) => ligne(l, lanc[k])).join('')}</table>` : ''}
+  <p class="muted">${esc(serviceDe(p).label)}</p>
+  <h3>Avancement</h3><ol>${tri(p.etapes).map((e) => `<li>${esc(serviceDe(p).etapes[e.numero]?.titre)} : ${STATUTS[e.statut]}</li>`).join('')}</ol>
+  ${lanc ? `<h3>Fiche de préparation</h3><table>${serviceDe(p).fiche.map(([k, l]) => ligne(l, lanc.reponses?.[k])).join('')}</table>` : ''}
   <h3>Fichiers</h3>${p.fichiers?.length ? `<ul>${p.fichiers.map((f) => `<li>[${CATEGORIES[f.categorie]}] <a href="${esc(f.url)}">${esc(f.titre)}</a> <span class="muted">${esc(f.url)}</span>
     ${(p.retours ?? []).filter((r) => r.fichier_id === f.id).map((r) => `<div class="m">${r.type === 'validation' ? `✓ Validé le ${date(r.created_at)}`
       : `${r.temps_sec != null ? `<b>${fmtTemps(r.temps_sec)}</b> · ` : ''}${r.par_admin ? 'Mackerprod' : 'Client'} : ${esc(r.contenu)}${r.traite ? ' <span class="muted">(traité)</span>' : ''}`}</div>`).join('')}</li>`).join('')}</ul>` : '<p class="muted">Aucun fichier.</p>'}

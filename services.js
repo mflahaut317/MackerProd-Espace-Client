@@ -1,0 +1,173 @@
+// Catalogue des prestations Mackerprod (d'après mackerprod.fr).
+// Chaque type de projet a ses 7 étapes et sa fiche de préparation.
+// Les libellés courts des étapes sont repris côté base (table services_etapes) pour les e-mails.
+
+const e = (titre, texte, attendu, onglet) => ({ titre, texte, attendu, onglet });
+const RIEN = 'Rien à faire : on vous recontacte sous 24 h ouvrées.';
+
+export const SERVICES = {
+  corporate: {
+    label: 'Film d’entreprise & événement', cible: 'pro',
+    etapes: {
+      1: e('Premier échange', 'On parle de votre entreprise, de votre métier et de ce que vous voulez transmettre.', RIEN),
+      2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
+      3: e('Préparation', 'Brief, script, repérage et planning du tournage.', 'Remplir la fiche de préparation.', 'lancement'),
+      4: e('Tournage', 'Captation sur place, interviews et reportage photo.', 'Prévenir les équipes et préparer les lieux.'),
+      5: e('Montage', 'Montage, étalonnage et sound design. Vous commentez chaque version.', 'Regarder la version et laisser vos retours.', 'fichiers'),
+      6: e('Livraison', 'Film final et déclinaisons livrés dans les formats prévus.', 'Télécharger vos fichiers.', 'fichiers'),
+      7: e('Suivi', 'Formats réseaux, nouvelles déclinaisons, prochain projet.', 'Nous écrire si vous avez besoin d’un nouveau format.', 'messages'),
+    },
+    fiche: [
+      ['objectifs', 'Objectif du film', 'Présenter l’entreprise, recruter, couvrir un événement…'],
+      ['diffusion', 'Où sera-t-il diffusé ?', 'Site, LinkedIn, salon, écran d’accueil…'],
+      ['message', 'Message clé à faire passer'],
+      ['personnes', 'Personnes à filmer', 'Noms, fonctions, qui parle face caméra'],
+      ['lieu', 'Lieu(x) du tournage'],
+      ['dates', 'Date(s) de l’événement ou du tournage'],
+      ['references', 'Vidéos qui vous plaisent', 'Liens'],
+      ['charte', 'Logo, couleurs, charte graphique'],
+      ['contraintes', 'Contraintes', 'Accès, horaires, sécurité, confidentialité…'],
+    ],
+  },
+
+  immobilier: {
+    label: 'Immobilier & drone', cible: 'pro',
+    etapes: {
+      1: e('Demande', 'Vous nous présentez le bien à mettre en valeur.', RIEN),
+      2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
+      3: e('Préparation du bien', 'Infos d’accès, créneau, autorisation de vol drone si besoin.', 'Remplir la fiche du bien.', 'lancement'),
+      4: e('Tournage & photos', 'Visite filmée, drone, FPV et photos HDR sur place.', 'Rendre le bien rangé, lumineux et accessible.'),
+      5: e('Montage & retouche', 'Montage rythmé et retouche des photos. Vous commentez la version.', 'Regarder la version et laisser vos retours.', 'fichiers'),
+      6: e('Livraison', 'Vidéo, formats courts pour les annonces et photos HD.', 'Télécharger vos fichiers.', 'fichiers'),
+      7: e('Suivi', 'Prochain bien, nouveaux formats.', 'Nous écrire pour le prochain bien.', 'messages'),
+    },
+    fiche: [
+      ['adresse_bien', 'Adresse du bien'],
+      ['type_bien', 'Type de bien et surface', 'Maison, appartement, domaine, hôtel…'],
+      ['acces', 'Accès et contact sur place', 'Clés, code, personne présente'],
+      ['points_forts', 'Points forts à montrer', 'Piscine, vue, parc, pièces de vie…'],
+      ['drone', 'Drone souhaité ?', 'Oui / non. Proximité d’un aéroport, zone urbaine ?'],
+      ['formats', 'Formats attendus', 'Vidéo 16:9, reel 9:16, nombre de photos…'],
+      ['diffusion', 'Où sera-t-il diffusé ?', 'Portails, site de l’agence, réseaux'],
+      ['dates', 'Créneaux possibles'],
+      ['contraintes', 'Contraintes', 'Occupants, délais de mise en vente…'],
+    ],
+  },
+
+  frame2: {
+    label: 'Frame² · contenu réseaux', cible: 'pro',
+    etapes: {
+      1: e('Premier échange', 'On découvre votre activité et vos réseaux.', RIEN),
+      2: e('Pack & signature', 'Vous choisissez votre pack (Découverte, Visibilité, Stabilité, Communauté) et on signe.', 'Choisir votre pack et signer.'),
+      3: e('Pré-production', 'Stratégie, scripts des vidéos face caméra et calendrier éditorial.', 'Remplir la fiche Frame².', 'lancement'),
+      4: e('Journée de tournage', 'Une journée sur place pour des mois de contenus.', 'Prévoir plusieurs tenues, les personnes à filmer et les lieux.'),
+      5: e('Montage des contenus', 'Vidéos face caméra, ambiances et photos. Vous commentez les premières versions.', 'Regarder les contenus et laisser vos retours.', 'fichiers'),
+      6: e('Livraison & calendrier', 'Contenus prêts à publier, livrés avec le calendrier éditorial.', 'Télécharger vos contenus et le calendrier.', 'fichiers'),
+      7: e('Publication & suivi', 'On suit la publication et on prépare le prochain tournage.', 'Nous écrire si un contenu doit être ajusté.', 'messages'),
+    },
+    fiche: [
+      ['pack', 'Pack choisi', 'Découverte, Visibilité, Stabilité, Communauté ou sur mesure'],
+      ['reseaux', 'Vos réseaux', 'Liens Instagram, Facebook, LinkedIn, TikTok'],
+      ['rythme', 'Rythme de publication souhaité', '1, 2 ou 3 par semaine'],
+      ['format', 'Format principal', '9:16 (vertical) ou 16:9'],
+      ['cible', 'Clientèle visée'],
+      ['sujets', 'Sujets à aborder', 'Produits, coulisses, équipe, conseils, offres…'],
+      ['face_camera', 'Qui parle face caméra ?'],
+      ['lieux', 'Lieu(x) de tournage'],
+      ['temps_forts', 'Temps forts de l’année', 'Soldes, saisons, événements, anniversaire…'],
+      ['references', 'Comptes qui vous inspirent', 'Liens'],
+    ],
+  },
+
+  site_web: {
+    label: 'Site internet', cible: 'pro',
+    etapes: {
+      1: e('Premier échange', 'On parle de votre activité et de ce que doit faire votre site.', RIEN),
+      2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
+      3: e('Contenus', 'On rassemble textes, photos et accès au nom de domaine.', 'Remplir la fiche du site.', 'lancement'),
+      4: e('Tournage & photos', 'On réalise les images du site si elles sont prévues.', 'Préparer les lieux et les personnes à filmer.'),
+      5: e('Maquette & création', 'On construit le site. Vous commentez la maquette.', 'Relire la maquette et laisser vos retours.', 'fichiers'),
+      6: e('Mise en ligne', 'Le site est publié sur votre nom de domaine, qui reste à vous.', 'Vérifier le site en ligne.'),
+      7: e('Suivi', 'Mises à jour et ajustements.', 'Nous écrire si quelque chose doit évoluer.', 'messages'),
+    },
+    fiche: [
+      ['objectifs', 'Rôle du site', 'Être trouvé, prendre des rendez-vous, vendre…'],
+      ['cible', 'Clientèle visée'],
+      ['pages', 'Pages souhaitées', 'Accueil, services, réalisations, contact…'],
+      ['references', 'Sites qui vous plaisent', 'Liens'],
+      ['charte', 'Logo, couleurs, charte'],
+      ['contenus', 'Textes et photos déjà disponibles'],
+      ['domaine', 'Nom de domaine et hébergeur actuel', 'Il reste à vous'],
+      ['fonctions', 'Fonctions particulières', 'Formulaire, réservation, multilingue…'],
+    ],
+  },
+
+  mariage: {
+    label: 'Mariage · film & photo', cible: 'particulier',
+    etapes: {
+      1: e('Premier échange', 'Vous nous racontez votre histoire et votre journée.', RIEN),
+      2: e('Date réservée', 'Contrat et acompte : votre date est bloquée.', 'Signer le contrat et régler l’acompte.'),
+      3: e('Préparation', 'Rendez-vous de préparation, déroulé de la journée et lieux.', 'Remplir la fiche de votre mariage.', 'lancement'),
+      4: e('Le jour J', 'Deux vidéastes et une photographe à vos côtés, discrets mais toujours là.', 'Profiter, on s’occupe du reste.'),
+      5: e('Montage & tri', 'Montage du film et du teaser, tri et retouche des photos.', 'Patience : on vous prévient dès qu’un aperçu est prêt.'),
+      6: e('Livraison', 'Teaser, film complet et galerie photo.', 'Regarder, partager et télécharger vos souvenirs.', 'fichiers'),
+      7: e('Souvenirs', 'Albums, tirages, et toujours là pour vos prochains moments.', 'Nous écrire pour un album ou un tirage.', 'messages'),
+    },
+    fiche: [
+      ['maries', 'Prénoms des mariés'],
+      ['date', 'Date du mariage'],
+      ['lieux', 'Lieux et adresses', 'Préparatifs, mairie, cérémonie, réception'],
+      ['deroule', 'Déroulé de la journée', 'Horaires des grands moments'],
+      ['temoins', 'Témoins et proches importants', 'Prénoms, liens'],
+      ['moments', 'Moments à ne pas manquer', 'Discours, surprises, entrée, première danse…'],
+      ['musique', 'Musiques que vous aimez'],
+      ['drone', 'Drone en option ?', 'Oui / non'],
+      ['contact_jour_j', 'Contact le jour J', 'Une personne joignable autre que les mariés'],
+    ],
+  },
+
+  evenement: {
+    label: 'Événement familial', cible: 'particulier',
+    etapes: {
+      1: e('Premier échange', 'Vous nous parlez de l’événement : baptême, anniversaire, EVJF, EVG…', RIEN),
+      2: e('Date réservée', 'Devis signé et date bloquée.', 'Signer le devis.'),
+      3: e('Préparation', 'Programme, lieu et personnes importantes.', 'Remplir la fiche de l’événement.', 'lancement'),
+      4: e('Le jour J', 'On filme et photographie votre événement.', 'Profiter, on s’occupe du reste.'),
+      5: e('Montage & tri', 'Montage du film et retouche des photos.', 'Patience : on vous prévient dès que c’est prêt.'),
+      6: e('Livraison', 'Film et galerie photo.', 'Regarder, partager et télécharger vos souvenirs.', 'fichiers'),
+      7: e('Souvenirs', 'Toujours là pour vos prochains moments.', 'Nous écrire pour un tirage ou un nouveau projet.', 'messages'),
+    },
+    fiche: [
+      ['type', 'Type d’événement', 'Baptême, anniversaire, EVJF, EVG, fête…'],
+      ['date', 'Date et horaires'],
+      ['lieu', 'Lieu et adresse'],
+      ['programme', 'Programme', 'Les temps forts et leurs horaires'],
+      ['personnes', 'Personnes importantes'],
+      ['moments', 'Moments à ne pas manquer'],
+      ['contact_jour_j', 'Contact le jour J'],
+    ],
+  },
+
+  seance_photo: {
+    label: 'Séance photo · Stu’Dee', cible: 'particulier',
+    etapes: {
+      1: e('Premier échange', 'Vous nous dites quelle séance vous imaginez.', RIEN),
+      2: e('Réservation', 'Date et formule confirmées.', 'Confirmer la date.'),
+      3: e('Préparation', 'Lieu, tenues et ambiance de la séance.', 'Remplir la fiche de la séance.', 'lancement'),
+      4: e('La séance', 'Delphine vous guide, en extérieur ou à domicile.', 'Venir comme vous êtes.'),
+      5: e('Tri & retouche', 'Sélection et retouche de vos photos.', 'Patience : on vous prévient dès que c’est prêt.'),
+      6: e('Livraison', 'Votre galerie en ligne.', 'Télécharger vos photos.', 'fichiers'),
+      7: e('Souvenirs', 'Tirages, albums et prochaines séances.', 'Nous écrire pour un tirage.', 'messages'),
+    },
+    fiche: [
+      ['type', 'Type de séance', 'Couple, famille, grossesse, naissance, portrait'],
+      ['personnes', 'Qui sera photographié ?', 'Prénoms, âges des enfants'],
+      ['lieu', 'Lieu souhaité', 'Extérieur, à domicile, lieu précis'],
+      ['dates', 'Dates possibles'],
+      ['ambiance', 'Ambiance et envies', 'Naturelle, joyeuse, intime… Liens d’inspiration'],
+      ['tenues', 'Tenues prévues'],
+    ],
+  },
+};
+
+export const serviceDe = (p) => SERVICES[p?.type] ?? SERVICES.site_web;
