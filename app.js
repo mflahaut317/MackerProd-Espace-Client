@@ -32,8 +32,12 @@ let profil = null;
 // #/            : accueil (tableau de bord admin ou espace client)
 // #/projet/<id> : détail d'un projet
 
-sb.auth.onAuthStateChange((_event, session) => demarrer(session));
-window.addEventListener('hashchange', () => profil && router());
+// Supabase interdit d'attendre une autre requête dans ce rappel (blocage) :
+// on lance donc le rendu juste après, hors du rappel.
+sb.auth.onAuthStateChange((_event, session) => {
+  setTimeout(() => demarrer(session).catch(showError), 0);
+});
+window.addEventListener('hashchange', () => profil && Promise.resolve(router()).catch(showError));
 logoutBtn.onclick = () => sb.auth.signOut();
 
 async function demarrer(session) {
