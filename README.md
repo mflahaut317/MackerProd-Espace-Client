@@ -8,6 +8,7 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 ### 1. Supabase
 1. Crée un compte sur https://supabase.com puis **New project** (région : Paris / eu-west-3).
 2. Ouvre **SQL Editor > New query**, colle le contenu de `supabase/schema.sql`, puis **Run**.
+   Fais de même avec `supabase/02_etape2.sql` (messages, fichiers, fiche de lancement).
 3. Dans **Project Settings > API**, copie la *Project URL* et la clé *anon public* dans `config.js`.
 4. Dans **Authentication > URL Configuration**, mets l'adresse de ton site dans *Site URL*
    et ajoute-la dans *Redirect URLs* (ex. `https://espace.mackerprod.fr/`).
@@ -28,6 +29,9 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
   automatiquement. Tu changes le statut de chaque étape depuis le tableau de bord.
 - **Le client** : il va sur le site, saisit son e-mail, clique sur le lien reçu.
   Il voit ses projets et remplit sa fiche une seule fois.
+- **Dans chaque projet** : les 7 étapes, un fil de messages, les liens vers les fichiers et vidéos,
+  et la fiche de lancement. Sur ton tableau de bord, un projet affiche « Message client en attente »
+  tant que tu n'as pas répondu.
 
 ## Limites de l'offre gratuite Supabase à connaître
 - Un projet inactif pendant 7 jours est mis en pause. Il se relance en un clic depuis le tableau de bord Supabase.
@@ -39,3 +43,4 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 - `index.html`, `style.css`, `app.js` : l'application.
 - `config.js` : tes clés Supabase.
 - `supabase/schema.sql` : tables, 7 étapes automatiques et droits d'accès (chaque client ne voit que son dossier).
+- `supabase/02_etape2.sql` : fiche de lancement, fichiers (liens) et messages.

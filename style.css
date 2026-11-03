@@ -30,3 +30,15 @@ button.link { background: none; color: var(--muted); padding: 0; margin: 0; text
 .en_cours .dot { background: var(--run); border-color: var(--run); }
 .steps select { width: auto; margin-left: auto; }
 .notice { padding: .6rem .8rem; border-radius: 6px; background: var(--card); border: 1px solid var(--line); }
+a { color: var(--accent); }
+.projet-lien { display: flex; flex-direction: column; gap: .2rem; text-decoration: none; color: var(--text); }
+.projet-lien:hover { border-color: var(--accent); }
+.alerte { color: var(--run); font-weight: 600; }
+.fil { max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: .6rem; margin-bottom: .5rem; }
+.bulle { max-width: 85%; padding: .5rem .75rem; border-radius: 10px; border: 1px solid var(--line); }
+.bulle.admin { align-self: flex-start; background: var(--bg); }
+.bulle.client { align-self: flex-end; }
+.fichiers { list-style: none; padding: 0; margin: 0 0 1rem; }
+.fichiers li { display: flex; flex-wrap: wrap; gap: .5rem; align-items: baseline; padding: .4rem 0; border-bottom: 1px solid var(--line); }
+.fichiers .link { margin-left: auto; }
+.tag { font-size: .75rem; padding: .1rem .45rem; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
