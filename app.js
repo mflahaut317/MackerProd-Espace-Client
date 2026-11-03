@@ -291,7 +291,11 @@ async function renderProjet(id, onglet) {
       </div>
       ${admin && p.clients ? `<div class="section"><p class="label">Contact</p>
         <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p>
-        <div class="form-foot"><button class="btn btn-line btn-sm" id="exporter">Exporter le dossier du client</button></div></div>` : ''}
+        <div class="form-foot"><button class="btn btn-line btn-sm" id="exporter">Exporter le dossier du client</button></div></div>
+      <div class="section"><p class="label">Prestation</p>
+        <select id="changer-type" style="max-width:420px">${Object.entries(SERVICES).map(([k, v]) =>
+          `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
+        <p class="muted small" style="margin-top:6px">Change les noms des étapes et la fiche de préparation de ce projet.</p></div>` : ''}
     </section>
 
     <section class="panel" data-panel="messages">
@@ -355,6 +359,12 @@ async function renderProjet(id, onglet) {
   }));
   montrer(actif);
 
+  const changerType = document.getElementById('changer-type');
+  if (changerType) changerType.onchange = async () => {
+    const { error } = await sb.from('projets').update({ type: changerType.value }).eq('id', id);
+    if (error) return alert(error.message);
+    renderProjet(id, 'avancement');
+  };
   if (admin && document.getElementById('exporter')) document.getElementById('exporter').onclick = () => exporterDossier(p.client_id);
   if (admin) {
     app.querySelectorAll('select[data-projet]').forEach((s) => (s.onchange = async () => {
