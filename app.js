@@ -1,6 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { SERVICES, serviceDe } from './services.js';
+import { SERVICES, EQUIPE, serviceDe } from './services.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const app = document.getElementById('app');
@@ -25,6 +25,10 @@ const CATEGORIES = { video: 'Vidéo', photo: 'Photo', document: 'Document', maqu
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dateFr = (d) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const jourFr = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+const jourCourt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const equipeHtml = (ids) => `<div class="equipe">${ids.map((k) => EQUIPE[k]).map((m) => `
+  <figure><img src="${m.photo}" alt="${esc(m.nom)}" loading="lazy"><figcaption><b>${esc(m.nom)}</b><span>${esc(m.role)}</span></figcaption></figure>`).join('')}</div>`;
 const rempli = (v) => v != null && String(v).trim() !== '';
 const tri = (etapes) => [...(etapes ?? [])].sort((a, b) => a.numero - b.numero);
 
@@ -151,7 +155,7 @@ async function renderClient(clientId) {
   app.innerHTML = `
     <p class="label rule">Espace client</p>
     <h1 class="h-l">Bonjour <em>${esc((fiche.nom || '').split(' ')[0] || '')}</em></h1>
-    <p class="lead">Retrouvez ici l’avancement de vos projets, vos échanges avec Mackerprod et vos fichiers.</p>
+    <p class="lead">Bienvenue chez Mackerprod. Ici, vous suivez votre projet de la première rencontre jusqu’aux souvenirs : chaque étape, vos échanges avec nous, vos films et vos photos. Une seule adresse, une seule équipe.</p>
 
     <section class="section">
       <p class="label">À faire de votre côté</p>
@@ -171,6 +175,12 @@ async function renderClient(clientId) {
             ${parcoursHtml(p)}
           </a>`).join('') || '<p class="empty">Aucun projet pour l’instant.</p>'}
       </div>
+    </section>
+
+    <section class="section">
+      <p class="label">Votre équipe</p>
+      <p class="panel-intro">Avant de parler caméras, on parle de vous. Voici les personnes qui vous accompagnent.</p>
+      ${equipeHtml([...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))].length ? [...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))] : Object.keys(EQUIPE))}
     </section>
 
     <section class="section" id="fiche">
@@ -201,7 +211,8 @@ function parcoursHtml(p, editable = false) {
       ${editable
         ? `<select data-projet="${projetId}" data-numero="${e.numero}" aria-label="Statut de l’étape ${e.numero}">${Object.entries(STATUTS).map(([v, t]) =>
             `<option value="${v}" ${v === e.statut ? 'selected' : ''}>${t}</option>`).join('')}</select>`
-        : `<span class="s">${e.statut === 'en_cours' ? 'En cours' : e.statut === 'termine' ? 'Terminé' : ''}</span>`}
+        : `<span class="s">${e.statut === 'en_cours' ? 'En cours' : e.statut === 'termine' ? 'Terminé' : e.date_prevue ? jourCourt(e.date_prevue) : ''}</span>`}
+      ${editable ? `<input type="date" class="date-etape" data-projet="${projetId}" data-numero="${e.numero}" value="${e.date_prevue ?? ''}" aria-label="Date prévue de l’étape ${e.numero}">` : ''}
     </li>`).join('')}</ol>`;
 }
 
@@ -252,7 +263,8 @@ async function renderProjet(id, onglet) {
   const e = etapeCourante(p.etapes);
   const svc = serviceDe(p);
   const info = svc.etapes[e?.numero] ?? {};
-  const reponses = lancement?.reponses ?? {};
+  const reponses = { ...(lancement?.reponses ?? {}) };
+  const coches = new Set(reponses._guide ?? []);
   const dernier = (messages ?? []).at(-1);
   const attendReponse = dernier && dernier.par_admin !== admin;
   const lancementVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
@@ -282,12 +294,25 @@ async function renderProjet(id, onglet) {
           <p class="label red">${e?.statut === 'termine' ? 'Projet terminé' : 'Étape en cours'}</p>
           <h3>${esc(info.titre)}</h3>
           <p>${esc(info.texte)}</p>
+          ${e?.date_prevue ? `<p class="quand">Prévu le ${esc(jourFr(e.date_prevue))}</p>` : ''}
           ${admin ? '' : `<p class="attendu">De votre côté : ${esc(info.attendu)}${info.onglet ? ` <a href="#/projet/${id}/${info.onglet}">C’est ici →</a>` : ''}</p>`}
         </div>
       </div>
       <div class="section" style="margin-top:40px">
         <p class="label">Les 7 étapes${admin ? ' · modifiez le statut ici' : ''}</p>
         ${parcoursHtml(p, admin)}
+      </div>
+      <div class="section guide-wrap">
+        <div>
+          <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Votre guide de préparation'}</p>
+          <p class="panel-intro">${admin ? 'Ce que le client coche de son côté.' : 'Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.'}</p>
+          <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''} ${admin ? 'disabled' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
+          <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
+        </div>
+        <div>
+          <p class="label">Votre équipe</p>
+          ${equipeHtml(svc.equipe)}
+        </div>
       </div>
       ${admin && p.clients ? `<div class="section"><p class="label">Contact</p>
         <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p>
@@ -375,7 +400,22 @@ async function renderProjet(id, onglet) {
     }));
   }
 
-  bindForm('lancement', (maj) => sb.from('lancements').upsert({ projet_id: id, reponses: { ...reponses, ...maj } }));
+  bindForm('lancement', (maj) => { Object.assign(reponses, maj); return sb.from('lancements').upsert({ projet_id: id, reponses }); });
+
+  app.querySelectorAll('[data-guide]').forEach((c) => (c.onchange = async () => {
+    const i = Number(c.dataset.guide);
+    c.checked ? coches.add(i) : coches.delete(i);
+    reponses._guide = [...coches].sort((a, b) => a - b);
+    document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
+    const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
+    if (error) alert(error.message);
+  }));
+
+  app.querySelectorAll('.date-etape').forEach((d) => (d.onchange = async () => {
+    const { error } = await sb.from('etapes').update({ date_prevue: d.value || null })
+      .eq('projet_id', d.dataset.projet).eq('numero', Number(d.dataset.numero));
+    if (error) alert(error.message);
+  }));
 
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
     ev.preventDefault();

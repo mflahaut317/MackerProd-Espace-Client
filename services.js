@@ -5,9 +5,24 @@
 const e = (titre, texte, attendu, onglet) => ({ titre, texte, attendu, onglet });
 const RIEN = 'Rien à faire : on vous recontacte sous 24 h ouvrées.';
 
+export const EQUIPE = {
+  mickael: { nom: 'Mickaël', role: 'Vidéaste monteur · télépilote drone certifié', photo: 'img/equipe-mickael.webp' },
+  maxence: { nom: 'Maxence', role: 'Vidéaste monteur', photo: 'img/equipe-maxence.webp' },
+  delphine: { nom: 'Delphine', role: 'Photographe · Stu’Dee', photo: 'img/equipe-delphine.webp' },
+};
+
 export const SERVICES = {
   corporate: {
     label: 'Film d’entreprise & événement', cible: 'pro',
+    equipe: ['mickael', 'maxence', 'delphine'],
+    guide: [
+      'Prévenir les personnes filmées et vérifier leurs disponibilités',
+      'Choisir qui parle face caméra et préparer 3 messages clés',
+      'Ranger et éclairer les espaces de travail à filmer',
+      'Prévoir des tenues sans petits motifs ni logos d’autres marques',
+      'Obtenir les autorisations de filmer (lieu, salariés, public)',
+      'Nous envoyer logo et charte graphique',
+    ],
     etapes: {
       1: e('Premier échange', 'On parle de votre entreprise, de votre métier et de ce que vous voulez transmettre.', RIEN),
       2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
@@ -32,6 +47,15 @@ export const SERVICES = {
 
   immobilier: {
     label: 'Immobilier & drone', cible: 'pro',
+    equipe: ['mickael', 'maxence', 'delphine'],
+    guide: [
+      'Ouvrir tous les volets et allumer toutes les lumières',
+      'Ranger : plans de travail vides, objets personnels rangés',
+      'Retirer les voitures devant le bien',
+      'Tondre et ranger l’extérieur (jeux, poubelles, tuyaux)',
+      'Vérifier l’accès (clés, code, personne sur place)',
+      'Prévenir le voisinage si le drone survole les abords',
+    ],
     etapes: {
       1: e('Demande', 'Vous nous présentez le bien à mettre en valeur.', RIEN),
       2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
@@ -56,6 +80,15 @@ export const SERVICES = {
 
   frame2: {
     label: 'Frame² · contenu réseaux', cible: 'pro',
+    equipe: ['mickael', 'maxence', 'delphine'],
+    guide: [
+      'Prévoir 3 à 4 tenues différentes',
+      'Relire les scripts des vidéos face caméra',
+      'Préparer produits, vitrine ou atelier à montrer',
+      'Prévenir l’équipe et les éventuels figurants',
+      'Lister vos temps forts de l’année (soldes, saisons, événements)',
+      'Nous donner accès ou partager vos identifiants de publication si on publie pour vous',
+    ],
     etapes: {
       1: e('Premier échange', 'On découvre votre activité et vos réseaux.', RIEN),
       2: e('Pack & signature', 'Vous choisissez votre pack (Découverte, Visibilité, Stabilité, Communauté) et on signe.', 'Choisir votre pack et signer.'),
@@ -81,6 +114,14 @@ export const SERVICES = {
 
   site_web: {
     label: 'Site internet', cible: 'pro',
+    equipe: ['mickael', 'maxence', 'delphine'],
+    guide: [
+      'Rassembler vos textes (présentation, services, tarifs)',
+      'Nous envoyer logo et photos existantes',
+      'Retrouver l’accès à votre nom de domaine (OVH, Gandi, IONOS…)',
+      'Lister 2 ou 3 sites qui vous plaisent',
+      'Préparer les mentions légales (SIRET, adresse, hébergeur)',
+    ],
     etapes: {
       1: e('Premier échange', 'On parle de votre activité et de ce que doit faire votre site.', RIEN),
       2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
@@ -104,6 +145,15 @@ export const SERVICES = {
 
   mariage: {
     label: 'Mariage · film & photo', cible: 'particulier',
+    equipe: ['mickael', 'maxence', 'delphine'],
+    guide: [
+      'Nous envoyer le déroulé de la journée avec les horaires',
+      'Prévoir une pièce rangée et lumineuse pour les préparatifs',
+      'Garder alliances, faire-part et détails à portée de main pour les photos',
+      'Prévenir le DJ et l’officiant de notre présence',
+      'Désigner un proche joignable le jour J',
+      'Prévoir un repas pour l’équipe (2 vidéastes + 1 photographe)',
+    ],
     etapes: {
       1: e('Premier échange', 'Vous nous racontez votre histoire et votre journée.', RIEN),
       2: e('Date réservée', 'Contrat et acompte : votre date est bloquée.', 'Signer le contrat et régler l’acompte.'),
@@ -128,6 +178,13 @@ export const SERVICES = {
 
   evenement: {
     label: 'Événement familial', cible: 'particulier',
+    equipe: ['mickael', 'maxence', 'delphine'],
+    guide: [
+      'Nous envoyer le programme avec les horaires',
+      'Indiquer les personnes importantes à ne pas manquer',
+      'Prévenir le lieu de notre présence',
+      'Désigner un proche joignable le jour J',
+    ],
     etapes: {
       1: e('Premier échange', 'Vous nous parlez de l’événement : baptême, anniversaire, EVJF, EVG…', RIEN),
       2: e('Date réservée', 'Devis signé et date bloquée.', 'Signer le devis.'),
@@ -150,6 +207,14 @@ export const SERVICES = {
 
   seance_photo: {
     label: 'Séance photo · Stu’Dee', cible: 'particulier',
+    equipe: ['delphine'],
+    guide: [
+      'Choisir des tenues aux couleurs douces et assorties',
+      'Éviter les gros logos et motifs chargés',
+      'À domicile : ouvrir les rideaux, ranger la pièce choisie',
+      'Prévoir un doudou ou un jouet pour les enfants',
+      'Venir détendus : Delphine vous guide',
+    ],
     etapes: {
       1: e('Premier échange', 'Vous nous dites quelle séance vous imaginez.', RIEN),
       2: e('Réservation', 'Date et formule confirmées.', 'Confirmer la date.'),

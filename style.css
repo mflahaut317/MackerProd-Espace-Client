@@ -248,3 +248,26 @@ details.ajout[open] summary { margin-bottom: 4px; }
 .stats-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 760px) { .stats, .stats-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats div:nth-child(3) { padding-left: 0; border-left: 0; } }
 .pin[hidden] { display: none; }
+
+/* Accueil : équipe, dates, guide */
+.equipe { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+.equipe figure { margin: 0; background: var(--bg-2); border: 1px solid var(--line); }
+.equipe img { display: block; width: 100%; aspect-ratio: 4 / 5; object-fit: cover; filter: saturate(.9); }
+.equipe figcaption { padding: 12px 14px 14px; }
+.equipe b { display: block; font: italic 300 1.4rem/1 var(--serif); }
+.equipe span { display: block; margin-top: 6px; font: 500 .56rem/1.5 var(--sans); letter-spacing: .18em; text-transform: uppercase; color: var(--bronze); }
+.quand { margin-top: 10px; color: var(--ivory); font-weight: 400; }
+.date-etape { margin-top: 6px; padding: 5px 6px; font-size: .78rem; }
+.guide-wrap { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 40px; }
+@media (max-width: 760px) { .guide-wrap { grid-template-columns: minmax(0, 1fr); } .parcours .date-etape { grid-column: 2 / -1; } }
+.guide { list-style: none; margin: 0 0 10px; padding: 0; border-top: 1px solid var(--line); }
+.guide li { border-bottom: 1px solid var(--line); }
+.guide .check { padding: 12px 0; font: 300 .98rem/1.4 var(--sans); letter-spacing: 0; text-transform: none; color: var(--ivory); align-items: flex-start; }
+.guide .check input { margin-top: 3px; accent-color: var(--red); }
+.guide .check input:checked + span { color: var(--muted); text-decoration: line-through; }
+.guide-wrap .equipe { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.guide-wrap .equipe:has(figure:only-child) { grid-template-columns: minmax(0, 200px); }
+.guide-wrap .equipe figcaption { padding: 10px; }
+.guide-wrap .equipe b { font-size: 1.15rem; }
+.guide-wrap .equipe span { font-size: .5rem; }
+.equipe { max-width: 720px; }
