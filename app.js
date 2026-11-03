@@ -268,8 +268,8 @@ function parcoursHtml(p, editable = false) {
       <span class="n">${e.numero}</span>
       <span class="t">${esc(svc.etapes[e.numero]?.titre)}</span>
       ${editable
-        ? `<select data-projet="${projetId}" data-numero="${e.numero}" aria-label="Statut de l’étape ${e.numero}">${Object.entries(STATUTS).map(([v, t]) =>
-            `<option value="${v}" ${v === e.statut ? 'selected' : ''}>${t}</option>`).join('')}</select>`
+        ? (e.statut === 'en_cours' ? '<span class="s">En cours</span>'
+          : `<button class="aller" data-aller="${e.numero}" title="Passer le projet à cette étape">${e.statut === 'termine' ? 'Terminé · revenir ici' : 'Passer ici'}</button>`)
         : `<span class="s">${e.statut === 'en_cours' ? 'En cours' : e.statut === 'termine' ? 'Terminé' : e.date_prevue ? jourCourt(e.date_prevue) : ''}</span>`}
       ${editable ? `<input type="date" class="date-etape" data-projet="${projetId}" data-numero="${e.numero}" value="${e.date_prevue ?? ''}" aria-label="Date prévue de l’étape ${e.numero}">` : ''}
     </li>`).join('')}</ol>`;
@@ -357,13 +357,20 @@ async function renderProjet(id, onglet) {
           <h3>${esc(info.titre)}</h3>
           <p>${esc(info.texte)}</p>
           ${e?.date_prevue ? `<p class="quand">Prévu le ${esc(jourFr(e.date_prevue))}</p>` : ''}
+          ${admin ? (() => {
+            const fini = e?.statut === 'termine';
+            const suivante = fini ? null : e?.numero < 7 ? svc.etapes[e.numero + 1]?.titre : 'Projet terminé';
+            return fini ? '<p class="quand">Toutes les étapes sont terminées.</p>' : `<div class="form-foot avancer">
+              <button class="btn" data-aller="${e.numero + 1}">${e.numero < 7 ? `Étape suivante : ${esc(suivante)} →` : 'Terminer le projet ✓'}</button>
+              <span class="muted small">Le client est prévenu par e-mail.</span></div>`;
+          })() : ''}
           ${admin ? '' : `<p class="attendu">De votre côté : ${esc(info.attendu)}${info.onglet ? ` <a href="#/projet/${id}/${info.onglet}">C’est ici →</a>` : ''}</p>`}
         </div>
       </div>
       ${!admin && p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<div class="rdv"><p class="label bronze">Prochain rendez-vous</p>
         <p class="h-m">${esc(p.prochain_rdv_note || 'On se retrouve')} <em>${esc(jourFr(p.prochain_rdv))}</em></p></div>` : ''}
       <div class="section" style="margin-top:40px">
-        <p class="label">Les 7 étapes${admin ? ' · modifiez le statut ici' : ''}</p>
+        <p class="label">Les 7 étapes${admin ? ' · « Passer ici » déplace le projet, les dates se règlent dessous' : ''}</p>
         ${parcoursHtml(p, admin)}
       </div>
       <div class="section guide-wrap">
@@ -476,9 +483,9 @@ async function renderProjet(id, onglet) {
   };
   if (admin && document.getElementById('exporter')) document.getElementById('exporter').onclick = () => exporterDossier(p.client_id);
   if (admin) {
-    app.querySelectorAll('select[data-projet]').forEach((s) => (s.onchange = async () => {
-      const { error } = await sb.from('etapes').update({ statut: s.value })
-        .eq('projet_id', s.dataset.projet).eq('numero', Number(s.dataset.numero));
+    app.querySelectorAll('[data-aller]').forEach((b) => (b.onclick = async (ev) => {
+      ev.preventDefault();
+      const { error } = await sb.rpc('aller_etape', { p: id, n: Number(b.dataset.aller) });
       if (error) return alert(error.message);
       renderProjet(id, 'avancement');
     }));

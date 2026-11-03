@@ -388,3 +388,6 @@ details.ajout[open] summary { margin-bottom: 4px; }
 .fiche-grille .parcours .n { font-size: 1.6rem; }
 @media (max-width: 900px) { .admin-haut { row-gap: 40px; } }
 @media (max-width: 560px) { .todo .prio .tag { display: none; } .todo .prio > a { padding-left: 16px; } }
+.parcours .aller { display: block; margin-top: 6px; padding: 0; background: none; border: 0; font: 400 .74rem var(--sans); color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; text-align: left; }
+.parcours .aller:hover { color: var(--ivory); }
+.focus .avancer { margin-top: 18px; flex-wrap: wrap; }
