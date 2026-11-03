@@ -2,22 +2,37 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Espace client · Macker Prod</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Espace client · Mackerprod</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/png" href="logo-mackerprod.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
-    <strong>Macker Prod</strong> <span class="muted">Espace client</span>
-    <button id="logout" class="link" hidden>Se déconnecter</button>
+  <header class="header">
+    <div class="wrap header-in">
+      <a class="logo" href="#/">
+        <img class="logo-img" src="logo-mackerprod.png" alt="Mackerprod">
+        <span><b>ESPACE CLIENT</b><small id="who">Votre projet, au même endroit</small></span>
+      </a>
+      <button id="logout" class="btn btn-line btn-sm" hidden>Se déconnecter</button>
+    </div>
   </header>
 
-  <main id="app">
-    <p class="muted">Chargement…</p>
+  <main id="app" class="wrap">
+    <p class="muted pad">Chargement…</p>
   </main>
 
-  <footer class="muted small">
-    Réponse sous 24 h ouvrées. Ton nom de domaine et tes fichiers restent à toi.
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <span><b>Réponse sous 24 h ouvrées</b></span>
+      <span>Votre nom de domaine et vos fichiers restent à vous</span>
+      <a href="tel:+33749437369">07 49 43 73 69</a>
+      <a href="mailto:contact@mackerprod.com">contact@mackerprod.com</a>
+    </div>
   </footer>
 
   <script type="module" src="app.js"></script>
