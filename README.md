@@ -10,7 +10,8 @@ Un seul lieu pour chaque client : sa fiche, ses projets et l'avancement des 7 é
 2. Ouvre **SQL Editor > New query**, colle le contenu de `supabase/schema.sql`, puis **Run**.
    Fais de même avec `supabase/02_etape2.sql` (messages, fichiers, fiche de lancement)
    puis `supabase/03_etape3.sql` (commentaires horodatés et validation),
-   `supabase/04_etape4_alertes.sql`, `supabase/04_etape4_cron.sql` et `supabase/05_securite.sql`.
+   `supabase/04_etape4_alertes.sql`, `supabase/04_etape4_cron.sql` et `supabase/05_securite.sql`,
+   puis les fichiers suivants dans l'ordre jusqu'à `supabase/11_script_versions.sql` (scripts et versions).
    (Déjà fait sur le projet Mackerprod.)
 3. Dans **Project Settings > API**, copie la *Project URL* et la clé *anon public* dans `config.js`.
 4. Dans **Authentication > URL Configuration**, mets l'adresse de ton site dans *Site URL*
