@@ -96,6 +96,33 @@ const signatureHtml = (svc) => {
     <p><b>${esc(svc.marque)}</b> · par Mackerprod${m ? `<span>Votre ${m.nom === 'Delphine' ? 'photographe' : 'interlocuteur'} : ${esc(m.nom)}</span>` : ''}</p></div>`;
 };
 const nousDe = (svc) => (svc.marque ? `${EQUIPE[svc.interlocuteur]?.nom ?? 'Mackerprod'} · ${svc.marque.split(' ')[0]}` : 'Mackerprod');
+// Fichier .ics : des journées entières à ajouter dans l'agenda du téléphone ou de l'ordinateur
+// (Google Agenda, Apple Calendrier, Outlook). evts : [{ d: 'AAAA-MM-JJ', titre, lien }].
+function telechargerIcs(nom, evts) {
+  const t = (x) => String(x ?? '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (c) => `\\${c}`);
+  const j = (d) => d.replaceAll('-', '');
+  const lend = (d) => new Date(new Date(d + 'T12:00:00Z').getTime() + 864e5).toISOString().slice(0, 10).replaceAll('-', '');
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Mackerprod//Espace client//FR', 'CALSCALE:GREGORIAN',
+    ...evts.flatMap((e) => ['BEGIN:VEVENT', `UID:${j(e.d)}-${encodeURIComponent(e.titre).slice(0, 40)}@mackerprod`, `DTSTAMP:${stamp}`,
+      `DTSTART;VALUE=DATE:${j(e.d)}`, `DTEND;VALUE=DATE:${lend(e.d)}`, `SUMMARY:${t(e.titre)}`,
+      ...(e.lien ? [`DESCRIPTION:${t(e.lien)}`, `URL:${e.lien}`] : []), 'END:VEVENT']),
+    'END:VCALENDAR'].join('\r\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' })), download: `${nom}.ics`,
+  });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+// Bouton « Ajouter à mon agenda » : data-ics='[{"d":…,"titre":…}]'
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-ics]');
+  if (!b) return;
+  ev.preventDefault();
+  try { telechargerIcs(b.dataset.icsNom || 'mackerprod', JSON.parse(b.dataset.ics)); } catch (e) { console.error(e); }
+});
+const icsAttr = (evts, nom) => `data-ics="${esc(JSON.stringify(evts))}" data-ics-nom="${esc(nom)}"`;
+const lienProjet = (id) => `${location.origin}${location.pathname}#/projet/${id}`;
 const aujourdhui = () => new Date().toLocaleDateString('sv-SE');
 const DEMANDES = { parrainage: 'Parrainage', tirages: 'Tirages photo', album: 'Album', nouveau_projet: 'Nouveau projet' };
 const rempli = (v) => v != null && String(v).trim() !== '';
@@ -841,7 +868,10 @@ async function renderProjetClient(id, ancre) {
         <div>
           <p class="pj-etat-t">${esc(titreEtat)}</p>
           <p class="pj-etat-d">${esc(fini ? 'Toutes les étapes sont terminées. On reste là pour la suite.' : info.texte)}</p>
-          ${!fini && courante?.date_prevue && courante.statut !== 'termine' ? `<p class="quand">Prévu le ${esc(jourFr(courante.date_prevue))}</p>` : ''}
+          ${!fini && courante?.date_prevue && courante.statut !== 'termine' ? `<p class="quand">Prévu le ${esc(jourFr(courante.date_prevue))}
+            · <button type="button" class="btn-txt" ${icsAttr([{ d: courante.date_prevue, titre: `${svc.etapes[courante.numero]?.titre ?? 'Mackerprod'} · ${p.titre}`, lien: lienProjet(id) }], 'mackerprod')}>Ajouter à mon agenda</button></p>` : ''}
+          ${p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<p class="quand">${esc(p.prochain_rdv_note || 'Prochain rendez-vous')} : ${esc(jourFr(p.prochain_rdv))}
+            · <button type="button" class="btn-txt" ${icsAttr([{ d: p.prochain_rdv, titre: `${p.prochain_rdv_note || 'Rendez-vous'} · Mackerprod`, lien: lienProjet(id) }], 'mackerprod-rdv')}>Ajouter à mon agenda</button></p>` : ''}
           ${!fini && !cta && info.attendu ? `<p class="attendu">De votre côté : ${esc(info.attendu)}</p>` : ''}
         </div>
         ${cta ? `<a class="btn" href="${cta.href}">${esc(cta.txt)} →</a>` : ''}
@@ -1092,6 +1122,7 @@ async function renderAdmin() {
     </div>
     ${semaine.length ? `<p class="semaine"><span class="label">Cette semaine</span>${semaine.map((a) =>
       `<a class="puce" href="#/projet/${a.p.id}"><b>${esc(jourCourt(a.d))}</b> ${esc(a.quoi)} · ${esc(a.c.nom || a.c.email)}</a>`).join('')}</p>` : ''}
+    ${avenir.length ? `<p class="muted small"><button type="button" class="btn-txt" ${icsAttr(avenir.map((a) => ({ d: a.d, titre: `${a.quoi} · ${a.c.nom || a.c.email}`, lien: lienProjet(a.p.id) })), 'mackerprod-30-jours')}>Mettre les 30 prochains jours dans mon agenda (.ics)</button></p>` : ''}
 
       <section class="liste" style="margin-top:22px">
         <div class="liste-titre"><span class="label ${prio.length ? 'red' : ''}">À faire</span></div>
