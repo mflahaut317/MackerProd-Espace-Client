@@ -1122,7 +1122,8 @@ async function renderAdmin() {
     </div>
     ${semaine.length ? `<p class="semaine"><span class="label">Cette semaine</span>${semaine.map((a) =>
       `<a class="puce" href="#/projet/${a.p.id}"><b>${esc(jourCourt(a.d))}</b> ${esc(a.quoi)} · ${esc(a.c.nom || a.c.email)}</a>`).join('')}</p>` : ''}
-    ${avenir.length ? `<p class="muted small"><button type="button" class="btn-txt" ${icsAttr(avenir.map((a) => ({ d: a.d, titre: `${a.quoi} · ${a.c.nom || a.c.email}`, lien: lienProjet(a.p.id) })), 'mackerprod-30-jours')}>Mettre les 30 prochains jours dans mon agenda (.ics)</button></p>` : ''}
+    <p class="muted small"><button type="button" class="btn-txt" id="lien-agenda">Relier à Google Agenda</button>${avenir.length ? ` · <button type="button" class="btn-txt" ${icsAttr(avenir.map((a) => ({ d: a.d, titre: `${a.quoi} · ${a.c.nom || a.c.email}`, lien: lienProjet(a.p.id) })), 'mackerprod-30-jours')}>Exporter les 30 prochains jours (.ics)</button>` : ''}</p>
+    <div id="agenda-aide" class="card agenda-aide" hidden></div>
 
       <section class="liste" style="margin-top:22px">
         <div class="liste-titre"><span class="label ${prio.length ? 'red' : ''}">À faire</span></div>
@@ -1140,6 +1141,25 @@ async function renderAdmin() {
     if (error) return alert(messageErreur(error));
     renderAdmin();
   }));
+  // Lien secret du flux iCal (fonction agenda) : à coller une fois dans Google Agenda.
+  document.getElementById('lien-agenda').onclick = async () => {
+    const aide = document.getElementById('agenda-aide');
+    const { data, error } = await sb.functions.invoke('agenda', { body: {} });
+    if (error || !data?.url) return alert(messageErreur(error ?? { message: data?.error ?? 'Lien indisponible' }));
+    aide.hidden = false;
+    aide.innerHTML = `<p><b>Vos dates clients dans Google Agenda</b>, mises à jour toutes seules.</p>
+      <ol class="small"><li>Copiez le lien ci-dessous.</li>
+        <li>Ouvrez <a href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl" target="_blank" rel="noopener">Google Agenda › Ajouter un agenda › À partir de l’URL</a> sur un ordinateur.</li>
+        <li>Collez le lien, puis « Ajouter l’agenda ». Chaque membre de l’équipe peut faire de même.</li></ol>
+      <div class="copier"><input readonly value="${esc(data.url)}"><button type="button" class="btn btn-sm">Copier</button></div>
+      <p class="muted small">Ce lien donne accès aux dates et aux noms des clients : gardez-le pour l’équipe. Google le relit plusieurs fois par jour.</p>`;
+    const champ = aide.querySelector('input');
+    aide.querySelector('.copier button').onclick = async (ev) => {
+      champ.select();
+      try { await navigator.clipboard.writeText(champ.value); } catch { document.execCommand('copy'); }
+      ev.target.textContent = 'Copié ✓';
+    };
+  };
 }
 
 // Projets (équipe) : toutes les vignettes, filtrées par phase.
