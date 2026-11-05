@@ -87,7 +87,7 @@ const dateFr = (d) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', mont
 const jourFr = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 const jourCourt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const equipeHtml = (ids) => `<div class="equipe">${ids.map((k) => EQUIPE[k]).map((m) => `
-  <figure><img src="${m.photo}" alt="${esc(m.nom)}" loading="lazy"><figcaption><b>${esc(m.nom)}</b><span>${esc(m.role)}</span></figcaption></figure>`).join('')}</div>`;
+  <figure><div class="eq-photo"><img src="${m.photo}" alt="${esc(m.nom)}" loading="lazy"></div><figcaption><b>${esc(m.nom)}</b><span>${esc(m.role)}</span>${m.bio ? `<p class="eq-bio">${esc(m.bio)}</p>` : ''}</figcaption></figure>`).join('')}</div>`;
 // Prestation d'une marque de Mackerprod (ex. Stu'Dee) : mention discrète + interlocuteur.
 const signatureHtml = (svc) => {
   if (!svc.marque) return '';
@@ -353,6 +353,7 @@ async function renderClient(clientId) {
 
     <section class="section">
       <p class="label">Votre équipe</p>
+      <p class="eq-intro">Une petite équipe, un même soin : on vous accompagne du premier échange jusqu’à la livraison, et même après.</p>
       ${equipeHtml([...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))].length ? [...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))] : Object.keys(EQUIPE))}
     </section>
 
@@ -603,7 +604,6 @@ async function renderProjet(id, onglet) {
   const svc = serviceDe(p);
   const info = svc.etapes[e?.numero] ?? {};
   const reponses = { ...(lancement?.reponses ?? {}) };
-  const coches = new Set(reponses._guide ?? []);
   const dernier = (messages ?? []).at(-1);
   const attendReponse = dernier && dernier.par_admin !== admin;
   const lancementVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
@@ -662,7 +662,7 @@ async function renderProjet(id, onglet) {
               <button class="btn btn-sm" data-aller="${n}">${n <= 7 ? `Passer à : ${esc(suivante)} →` : 'Terminer le projet ✓'}</button>
               <span class="muted small">Le client est prévenu.</span></div>`;
           })()}
-          <p class="muted small tdb-prep">Préparation du client : ${coches.size} / ${svc.guide.length} point${svc.guide.length > 1 ? 's' : ''}${lancementVide ? ' · fiche pas remplie' : ' · fiche remplie ✓'}</p>
+          ${(svc.masquer ?? []).includes(3) ? '' : `<p class="muted small tdb-prep">Fiche de préparation : ${lancementVide ? 'pas encore remplie' : 'remplie ✓'}</p>`}
         </article>
 
         <article class="tdb-carte">
@@ -882,14 +882,6 @@ async function renderProjet(id, onglet) {
 
   bindForm('lancement', (maj) => { Object.assign(reponses, maj); return sb.from('lancements').upsert({ projet_id: id, reponses }); });
 
-  app.querySelectorAll('[data-guide]').forEach((c) => (c.onchange = async () => {
-    const i = Number(c.dataset.guide);
-    c.checked ? coches.add(i) : coches.delete(i);
-    reponses._guide = [...coches].sort((a, b) => a - b);
-    document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
-    const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
-    if (error) alert(messageErreur(error));
-  }));
 
   // Planning : montage (5) et livraison (6) sont calculés par la base ; une date saisie à la main
   // y est « forcée », la vider revient au calcul. Toute autre date relance le calcul de la file.
@@ -1022,7 +1014,6 @@ async function renderProjetClient(id, ancre) {
   const galeries = (fichiers ?? []).filter((f) => f.categorie === 'photo' && estPicTime(f.url));
   const autres = (fichiers ?? []).filter((f) => !REVUE.includes(f.categorie) && !galeries.includes(f));
   const reponses = { ...(lancement?.reponses ?? {}) };
-  const coches = new Set(reponses._guide ?? []);
   const ficheUtile = !(svc.masquer ?? []).includes(3);
   const ficheVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
   // La préparation ne s'affiche qu'avant et pendant le tournage (étapes 2 à 4).
@@ -1091,7 +1082,6 @@ async function renderProjetClient(id, ancre) {
           if (livres.length) items.push({ href: `#/projet/${id}/livraison`, t: 'Découvrir votre livraison', s: esc(svc.livraison), ok: true });
           if (dernier?.par_admin && Date.now() - new Date(dernier.created_at) < 14 * 864e5) items.push({ href: '#messages', t: `Message de ${esc(nousDe(svc))}`, s: `« ${esc((dernier.contenu || '').slice(0, 70))}${(dernier.contenu || '').length > 70 ? '…' : ''} »`, msg: true });
           if (prepUtile && ficheUtile && ficheVide && (e?.numero ?? 0) >= 3) items.push({ href: '#preparation', t: 'Remplir la fiche de préparation', s: 'Quelques minutes, en plusieurs fois si besoin' });
-          if (prepUtile && coches.size < svc.guide.length) items.push({ href: '#preparation', t: 'Se préparer', s: `${coches.size} / ${svc.guide.length} point${svc.guide.length > 1 ? 's' : ''} prêt${coches.size > 1 ? 's' : ''}` });
           return items.length ? `<ul class="tdb-liste">${items.map((x) => `<li><a href="${x.href}"${x.msg ? ' data-voir-msg' : ''}><span class="dot ${x.r ? 'r' : x.ok ? 'ok' : 'b'}"></span><span><b>${x.t}</b><small>${x.s}</small></span><span class="go">→</span></a></li>`).join('')}</ul>`
             : `<p class="tdb-vide">Rien à faire pour l’instant ✓<small>${esc(!fini && info.attendu ? 'De votre côté : ' + info.attendu : 'On s’occupe de tout. On vous prévient dès qu’il y a du nouveau.')}</small></p>`;
         })()}
@@ -1135,17 +1125,14 @@ async function renderProjetClient(id, ancre) {
         </a>`).join('')}</div>
     </section>` : ''}
 
-    ${prepUtile ? `    <section class="section" id="preparation">
+    ${prepUtile && ficheUtile ? `    <section class="section" id="preparation">
       <div>
-        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour le jour du tournage'}</p>
-        <p class="panel-intro">Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.</p>
-        <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
-        <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
-        ${ficheUtile ? `<details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
+        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour préparer le tournage'}</p>
+        <details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
           <summary class="btn btn-line btn-sm">${ficheVide ? 'Remplir la fiche de préparation' : 'Revoir la fiche de préparation'}</summary>
           <p class="panel-intro" style="margin-top:16px">Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
           ${formHtml('lancement', svc.fiche, reponses)}
-        </details>` : ''}
+        </details>
       </div>
     </section>` : ''}
 
@@ -1230,14 +1217,6 @@ async function renderProjetClient(id, ancre) {
   }));
 
   if (document.getElementById('lancement')) bindForm('lancement', (maj) => { Object.assign(reponses, maj); return sb.from('lancements').upsert({ projet_id: id, reponses }); });
-  app.querySelectorAll('[data-guide]').forEach((c) => (c.onchange = async () => {
-    const i = Number(c.dataset.guide);
-    c.checked ? coches.add(i) : coches.delete(i);
-    reponses._guide = [...coches].sort((a, b) => a - b);
-    document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
-    const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
-    if (error) alert(messageErreur(error));
-  }));
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
     ev.preventDefault();
     const contenu = ev.target.contenu.value.trim();
