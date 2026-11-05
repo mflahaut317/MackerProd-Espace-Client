@@ -274,7 +274,7 @@ async function renderClient(clientId) {
     const { choix, ...details } = Object.fromEntries(new FormData(f));
     const type = choix || f.dataset.type;
     const { error } = await sb.from('demandes').insert({ client_id: clientId, projet_id: livres.at(-1)?.id ?? null, type, details });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderClient(clientId);
   }));
 }
@@ -572,13 +572,13 @@ async function renderProjet(id, onglet) {
     sb.from('projets').update({ prochain_rdv: prochain_rdv || null, prochain_rdv_note: prochain_rdv_note || null }).eq('id', id));
   app.querySelectorAll('[data-livrable]').forEach((c) => (c.onchange = async () => {
     const { error } = await sb.from('fichiers').update({ livrable: c.checked }).eq('id', c.dataset.livrable);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
   }));
   const changerType = document.getElementById('changer-type');
   if (changerType) changerType.onchange = async () => {
     const { error } = await sb.from('projets').update({ type: changerType.value }).eq('id', id);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'avancement');
   };
   if (admin && document.getElementById('exporter')) document.getElementById('exporter').onclick = () => exporterDossier(p.client_id);
@@ -586,7 +586,7 @@ async function renderProjet(id, onglet) {
     app.querySelectorAll('[data-aller]').forEach((b) => (b.onclick = async (ev) => {
       ev.preventDefault();
       const { error } = await sb.rpc('aller_etape', { p: id, n: Number(b.dataset.aller) });
-      if (error) return alert(error.message);
+      if (error) return alert(messageErreur(error));
       renderProjet(id, 'avancement');
     }));
   }
@@ -599,13 +599,13 @@ async function renderProjet(id, onglet) {
     reponses._guide = [...coches].sort((a, b) => a - b);
     document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
     const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
-    if (error) alert(error.message);
+    if (error) alert(messageErreur(error));
   }));
 
   app.querySelectorAll('.date-etape').forEach((d) => (d.onchange = async () => {
     const { error } = await sb.from('etapes').update({ date_prevue: d.value || null })
       .eq('projet_id', d.dataset.projet).eq('numero', Number(d.dataset.numero));
-    if (error) alert(error.message);
+    if (error) alert(messageErreur(error));
   }));
 
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
@@ -613,7 +613,7 @@ async function renderProjet(id, onglet) {
     const contenu = ev.target.contenu.value.trim();
     if (!contenu) return;
     const { error } = await sb.from('messages').insert({ projet_id: id, contenu });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'messages');
   };
 
@@ -622,7 +622,7 @@ async function renderProjet(id, onglet) {
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
     const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
   };
   const formScript = document.getElementById('nouveau-script');
@@ -630,14 +630,14 @@ async function renderProjet(id, onglet) {
     ev.preventDefault();
     const { titre, texte } = Object.fromEntries(new FormData(formScript));
     const { data: nv, error } = await sb.from('fichiers').insert({ projet_id: id, titre: titre.trim(), texte, categorie: 'script' }).select('id').single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     location.hash = `#/projet/${id}/revue/${nv.id}`;
   };
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
     if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
   }));
 }
@@ -868,14 +868,14 @@ async function renderProjetClient(id, ancre) {
     reponses._guide = [...coches].sort((a, b) => a - b);
     document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
     const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
-    if (error) alert(error.message);
+    if (error) alert(messageErreur(error));
   }));
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
     ev.preventDefault();
     const contenu = ev.target.contenu.value.trim();
     if (!contenu) return;
     const { error } = await sb.from('messages').insert({ projet_id: id, contenu });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjetClient(id, 'messages');
   };
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
@@ -883,13 +883,13 @@ async function renderProjetClient(id, ancre) {
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
     const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjetClient(id, 'fichiers');
   };
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
     if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjetClient(id, 'fichiers');
   }));
 }
@@ -1009,7 +1009,7 @@ async function renderAdmin() {
 
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
     const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderAdmin();
   }));
 }
@@ -1067,7 +1067,7 @@ async function renderClientsAdmin() {
     ev.preventDefault();
     const { email, nom, entreprise, projet, type } = Object.fromEntries(new FormData(ev.target));
     const { data: c, error } = await sb.from('clients').insert({ email, nom, entreprise }).select().single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     if (projet) await sb.from('projets').insert({ client_id: c.id, titre: projet, type });
     location.hash = `#/client/${c.id}`;
   };
@@ -1182,13 +1182,13 @@ async function renderFicheClient(id) {
   bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', id));
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
     const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderFicheClient(id);
   }));
   document.getElementById('ajout-projet').onsubmit = async (ev) => {
     ev.preventDefault();
     const { data: p, error } = await sb.from('projets').insert({ client_id: id, ...Object.fromEntries(new FormData(ev.target)) }).select().single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     location.hash = `#/projet/${p.id}`;
   };
 }
@@ -1214,6 +1214,16 @@ const chargerScript = (src) => new Promise((ok, ko) => {
   s.onerror = () => { s.remove(); ko(new Error('script')); };
   document.head.appendChild(s);
 });
+
+// Traduit les erreurs Supabase les plus courantes en phrase claire.
+function messageErreur(error) {
+  const m = error?.message ?? '';
+  if (/clients_email_key/.test(m)) return 'Un client existe déjà avec cet e-mail. Ouvrez-le dans la liste des clients.';
+  if (error?.code === '23505' || /duplicate key/.test(m)) return 'Cet élément existe déjà.';
+  if (error?.code === '42501' || /row-level security|permission denied/i.test(m)) return 'Vous n’avez pas l’autorisation de faire cette action.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Connexion impossible. Vérifiez votre réseau et réessayez.';
+  return m || 'Une erreur est survenue.';
+}
 
 // Reconnaît le type de lien pour choisir le bon lecteur.
 function analyserLien(url, categorie) {
@@ -1540,7 +1550,7 @@ async function renderRevue(projetId, fichierId) {
     if (pos) { ligne.pos_x = pos.x; ligne.pos_y = pos.y; }
     if (estScript && par != null && par <= 100) ligne.pos_y = par;
     const { error } = await sb.from('retours').insert(ligne);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
   };
 
@@ -1555,14 +1565,14 @@ async function renderRevue(projetId, fichierId) {
 
   app.querySelectorAll('[data-traite]').forEach((c) => (c.onchange = async () => {
     const { error } = await sb.from('retours').update({ traite: c.checked }).eq('id', c.dataset.traite);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     c.closest('li').classList.toggle('fait', c.checked);
   }));
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
     if (!confirm('Retirer ce commentaire ?')) return;
     const { error } = await sb.from('retours').delete().eq('id', b.dataset.suppr);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
   }));
 
@@ -1570,7 +1580,7 @@ async function renderRevue(projetId, fichierId) {
   if (valider) valider.onclick = async () => {
     if (!confirm(`Valider la V${vNum} ? Mackerprod sera prévenu.`)) return;
     const { error } = await sb.from('retours').insert({ fichier_id: fichierId, projet_id: projetId, type: 'validation' });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
   };
 
@@ -1582,7 +1592,7 @@ async function renderRevue(projetId, fichierId) {
       projet_id: projetId, titre: f.titre, categorie: f.categorie,
       url: nettoyerLien(d.url) || null, texte: d.texte || null, note_version: d.note_version?.trim() || null,
     }).select('id').single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     location.hash = `#/projet/${projetId}/revue/${nv.id}`;
   };
 }
@@ -1595,7 +1605,7 @@ async function exporterDossier(clientId) {
     sb.from('clients').select('*').eq('id', clientId).single(),
     sb.from('projets').select('*, etapes(*), lancements(*), fichiers(*), messages(*), retours(*)').eq('client_id', clientId).order('created_at'),
   ]);
-  if (error) return alert(error.message);
+  if (error) return alert(messageErreur(error));
   const ligne = (l, v) => rempli(v) ? `<tr><th>${esc(l)}</th><td>${esc(v).replace(/\n/g, '<br>')}</td></tr>` : '';
   const date = (d) => new Date(d).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
@@ -1698,7 +1708,7 @@ async function renderLivraison(id) {
   monterVideos(d);
   const basculer = async (actif) => {
     const { error } = await sb.rpc('partager_livraison', { p: id, actif });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderLivraison(id);
   };
   document.getElementById('activer')?.addEventListener('click', () => basculer(true));
