@@ -415,6 +415,23 @@ function progression(p) {
   const i = vs.findIndex((x) => x.numero >= (e?.numero ?? 2));
   return Math.round((100 * Math.max(0, i)) / Math.max(1, vs.length));
 }
+// Fenêtre de confirmation aux couleurs du site (remplace confirm(), bloqué dans certains navigateurs intégrés).
+async function demander({ titre, texte = '', ok = 'Valider', non = 'Annuler', danger = false }) {
+  const dlg = document.createElement('dialog');
+  dlg.className = 'confirmer';
+  dlg.innerHTML = `<form method="dialog">
+    <h2 class="h-m">${esc(titre)}</h2>
+    ${texte ? `<p class="muted">${esc(texte)}</p>` : ''}
+    <div class="form-foot"><button class="btn btn-line" value="non">${esc(non)}</button><button class="btn ${danger ? 'danger-plein' : ''}" value="oui" autofocus>${esc(ok)}</button></div>
+  </form>`;
+  document.body.append(dlg);
+  dlg.showModal();
+  dlg.onclick = (ev) => { if (ev.target === dlg) dlg.close('non'); };
+  await new Promise((r) => dlg.addEventListener('close', r, { once: true }));
+  const oui = dlg.returnValue === 'oui';
+  dlg.remove();
+  return oui;
+}
 // Suppression d'un projet (équipe) : fenêtre « Valider / Annuler », depuis les Réglages ou le menu ⋮ d'une vignette.
 async function supprimerProjet(p, apres) {
   const { data: fs } = await sb.from('fichiers').select('url').eq('projet_id', p.id);
@@ -902,7 +919,7 @@ async function renderProjet(id, onglet) {
     ev.preventDefault();
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
     const url = nettoyerLien(brut);
-    if (categorie === 'photo' && !estPicTime(url) && !confirm('Ce lien ne ressemble pas à une galerie Pic-Time. L’ajouter quand même ?')) return;
+    if (categorie === 'photo' && !estPicTime(url) && !(await demander({ titre: 'Ce lien ne ressemble pas à une galerie Pic-Time', texte: 'L’ajouter quand même ?', ok: 'Ajouter quand même' }))) return;
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
     if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
@@ -920,11 +937,11 @@ async function renderProjet(id, onglet) {
   };
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
-    if (!confirm('Retirer ce fichier de l’espace client ?')) return;
+    if (!(await demander({ titre: 'Retirer ce fichier de l’espace client ?', ok: 'Retirer', danger: true }))) return;
     const fi = (fichiers ?? []).find((x) => x.id === b.dataset.suppr);
     // Vidéo Vimeo : proposer de la supprimer aussi chez Vimeo (si aucune autre fiche ne l'utilise).
     const vimeo = fi?.url && /vimeo\.com\/(?:video\/)?\d+/.test(fi.url) && !(fichiers ?? []).some((x) => x.id !== fi.id && x.url === fi.url);
-    const aussiVimeo = vimeo && confirm('Supprimer aussi la vidéo de votre compte Vimeo ?\nOK : supprimer chez Vimeo · Annuler : la garder sur Vimeo');
+    const aussiVimeo = vimeo && await demander({ titre: 'Supprimer aussi la vidéo de votre compte Vimeo ?', ok: 'Supprimer chez Vimeo', non: 'La garder sur Vimeo', danger: true });
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
     if (error) return alert(messageErreur(error));
     if (aussiVimeo) {
@@ -1228,7 +1245,7 @@ async function renderProjetClient(id, ancre) {
     renderProjetClient(id, 'fichiers');
   };
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
-    if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
+    if (!(await demander({ titre: 'Retirer ce lien ?', texte: 'Le fichier lui-même n’est pas supprimé.', ok: 'Retirer', danger: true }))) return;
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
     if (error) return alert(messageErreur(error));
     renderProjetClient(id, 'fichiers');
@@ -2065,7 +2082,7 @@ async function renderRevue(projetId, fichierId) {
   }));
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
-    if (!confirm('Retirer ce commentaire ?')) return;
+    if (!(await demander({ titre: 'Retirer ce commentaire ?', ok: 'Retirer', danger: true }))) return;
     const { error } = await sb.from('retours').delete().eq('id', b.dataset.suppr);
     if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
@@ -2073,7 +2090,7 @@ async function renderRevue(projetId, fichierId) {
 
   const valider = document.getElementById('valider');
   if (valider) valider.onclick = async () => {
-    if (!confirm(`Valider la V${vNum} ? Mackerprod sera prévenu.`)) return;
+    if (!(await demander({ titre: `Valider la V${vNum} ?`, texte: 'L’équipe Mackerprod est prévenue et passe à la suite.', ok: 'Je valide' }))) return;
     const { error } = await sb.from('retours').insert({ fichier_id: fichierId, projet_id: projetId, type: 'validation' });
     if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
