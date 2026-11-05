@@ -1770,7 +1770,14 @@ async function renderRevue(projetId, fichierId) {
               <button class="ico" id="plein" type="button" aria-label="Plein écran" title="Plein écran"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
               <button class="btn btn-sm" id="commenter" type="button">Commenter à <span id="cur2">0:00</span></button>
             </div>
-          </div>` : ''}
+          </div>
+          <form class="bulle-plein" id="bulle" hidden>
+            <p>Commentaire à <b id="bulle-t">0:00</b></p>
+            <label for="bulle-txt" class="sr">Votre commentaire</label>
+            <textarea id="bulle-txt" rows="3" required placeholder="Ex. : ce plan est trop court."></textarea>
+            <div class="bulle-pied"><button type="button" class="btn-txt" id="bulle-annuler">Annuler</button><button class="btn btn-sm">Envoyer</button></div>
+          </form>
+          <p class="bulle-ok" id="bulle-ok" hidden>Commentaire ajouté ✓</p>` : ''}
           ${estVideo && mdpVideo(f.url) ? `<p class="mdp-video">Si Vimeo le demande, mot de passe de la vidéo : <b>${esc(mdpVideo(f.url))}</b></p>` : ''}`}
       </div>
 
@@ -1890,7 +1897,45 @@ async function renderRevue(projetId, fichierId) {
       zoneAncre.innerHTML = `À <b id="ancre-t">${fmtTemps(tempsFixe)}</b>`;
       sansTemps.hidden = false;
     };
-    document.getElementById('commenter').onclick = async () => { await figer(); form.contenu.focus(); };
+    // En plein écran, le panneau des retours n'est pas visible : « Commenter à » ouvre une bulle
+    // au-dessus de la tête de lecture, et le commentaire s'envoie sans quitter le plein écran.
+    const bulle = document.getElementById('bulle');
+    const enPlein = () => (document.fullscreenElement || document.webkitFullscreenElement) === scene;
+    let ajoutsPlein = false;
+    const fermerBulle = () => { bulle.hidden = true; bulle.reset(); };
+    document.getElementById('commenter').onclick = async () => {
+      await figer();
+      if (!enPlein()) return form.contenu.focus();
+      document.getElementById('bulle-t').textContent = fmtTemps(tempsFixe);
+      const pc = dur ? (100 * tempsFixe) / dur : 50;
+      bulle.style.left = `clamp(16px, calc(${pc}% - 160px), calc(100% - 336px))`;
+      bulle.hidden = false;
+      bulle.querySelector('textarea').focus();
+    };
+    document.getElementById('bulle-annuler').onclick = fermerBulle;
+    bulle.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const contenu = bulle.querySelector('textarea').value.trim();
+      if (!contenu) return;
+      const ligne = { fichier_id: fichierId, projet_id: projetId, contenu, temps_sec: tempsFixe };
+      const { data, error } = await sb.from('retours').insert(ligne).select().single();
+      if (error) return alert(messageErreur(error));
+      commentaires.push({ ...ligne, ...(data ?? {}), par_admin: admin, traite: false });
+      majPins();
+      ajoutsPlein = true;
+      fermerBulle();
+      const ok = document.getElementById('bulle-ok');
+      ok.hidden = false; setTimeout(() => (ok.hidden = true), 1800);
+    };
+    const sortiePlein = () => {
+      if (!document.body.contains(bulle)) {   // page quittée : on se désabonne
+        document.removeEventListener('fullscreenchange', sortiePlein);
+        return document.removeEventListener('webkitfullscreenchange', sortiePlein);
+      }
+      if (!enPlein()) { fermerBulle(); if (ajoutsPlein) renderRevue(projetId, fichierId); }
+    };
+    document.addEventListener('fullscreenchange', sortiePlein);
+    document.addEventListener('webkitfullscreenchange', sortiePlein);
     // Commencer à écrire fige l'instant et met la vidéo en pause.
     form.contenu.addEventListener('focus', () => { if (tempsFixe == null) figer(); });
     sansTemps.onclick = () => {
