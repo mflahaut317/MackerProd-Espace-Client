@@ -320,10 +320,6 @@ async function renderClient(clientId) {
     const m = dernierMessage(messages, p.id);
     if (m?.par_admin) todo.push({ href: `#/projet/${p.id}/messages`, titre: 'Nouveau message de Mackerprod', sub: `${p.titre} · ${dateFr(m.created_at)}` });
     const e = etapeCourante(p.etapes);
-    const lanc = (lancements ?? []).find((l) => l.projet_id === p.id);
-    if (e && e.numero >= 3 && e.numero <= 4 && !(serviceDe(p).masquer ?? []).includes(3) && !Object.values(lanc?.reponses ?? {}).some(rempli)) {
-      todo.push({ href: `#/projet/${p.id}/lancement`, titre: 'Remplir la fiche de préparation', sub: `${p.titre} · pour que tout soit prêt le jour du tournage` });
-    }
   }
   // Après-vente : visible dès qu'un projet est livré ou arrive au bout.
   const livres = (projets ?? []).filter((p) => (fichiers ?? []).some((x) => x.projet_id === p.id && x.livrable) || (etapeCourante(p.etapes)?.numero ?? 0) >= 6);
@@ -658,7 +654,7 @@ async function renderProjet(id, onglet) {
           <div class="pj-ban-bas">
             <div class="pj-prog"><span>${finiP ? 'Projet terminé' : `Étape ${rang + 1} sur ${vis.length} · ${esc(info.titre ?? '')}`}</span>
               <i><b style="width:${finiP ? 100 : progression(p)}%"></b></i></div>
-            ${admin ? `<span class="liens-sec"><a class="btn btn-verre btn-sm" href="#/projet/${id}/lancement"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l2 2v14H6V6zM9 10h6M9 14h6M9 18h3"/></svg>Réponses du client${lancementVide ? '' : ' ✓'}</a><a class="btn btn-verre btn-sm" href="#/projet/${id}/reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Réglages</a></span>` : ''}
+            ${admin ? `<span class="liens-sec"><a class="btn btn-verre btn-sm" href="#/projet/${id}/lancement"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l2 2v14H6V6zM9 10h6M9 14h6M9 18h3"/></svg>Fiche du projet${lancementVide ? '' : ' ✓'}</a><a class="btn btn-verre btn-sm" href="#/projet/${id}/reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Réglages</a></span>` : ''}
           </div>
         </div>
       </header>`;
@@ -687,7 +683,6 @@ async function renderProjet(id, onglet) {
               <button class="btn btn-sm" data-aller="${n}">${n <= 7 ? `Passer à : ${esc(suivante)} →` : 'Terminer le projet ✓'}</button>
               <span class="muted small">Le client est prévenu.</span></div>`;
           })()}
-          ${(svc.masquer ?? []).includes(3) ? '' : `<p class="muted small tdb-prep">Fiche de préparation : ${lancementVide ? 'pas encore remplie' : 'remplie ✓'}</p>`}
         </article>
 
         <article class="tdb-carte">
@@ -702,7 +697,6 @@ async function renderProjet(id, onglet) {
             (retours ?? []).filter((r) => r.type === 'validation' && Date.now() - new Date(r.created_at) < 7 * 864e5).forEach((r) => {
               const f = (fichiers ?? []).find((x) => x.id === r.fichier_id);
               items.push({ href: `#/projet/${id}/revue/${r.fichier_id}`, t: `« ${esc(f?.titre ?? 'Version')} » validé`, s: `Le ${jourCourt(r.created_at.slice(0, 10))} · à livrer`, ok: true }); });
-            if (lancementVide && (e?.numero ?? 0) >= 3 && (e?.numero ?? 0) <= 4 && !(svc.masquer ?? []).includes(3)) items.push({ href: `#/projet/${id}/messages`, t: 'Fiche de préparation vide', s: 'Relancer le client' });
             return items.length ? `<ul class="tdb-liste">${items.map((x) => `<li><a href="${x.href}"><span class="dot ${x.r ? 'r' : x.ok ? 'ok' : 'b'}"></span><span><b>${x.t}</b><small>${x.s}</small></span><span class="go">→</span></a></li>`).join('')}</ul>`
               : '<p class="tdb-vide">Rien à traiter ✓<small>Le client n’attend rien de vous pour l’instant.</small></p>';
           })()}
@@ -1039,16 +1033,12 @@ async function renderProjetClient(id, ancre) {
   const galeries = (fichiers ?? []).filter((f) => f.categorie === 'photo' && estPicTime(f.url));
   const autres = (fichiers ?? []).filter((f) => !REVUE.includes(f.categorie) && !galeries.includes(f));
   const reponses = { ...(lancement?.reponses ?? {}) };
-  const ficheUtile = !(svc.masquer ?? []).includes(3);
-  const ficheVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
-  // La préparation ne s'affiche qu'avant et pendant le tournage (étapes 2 à 4).
-  const prepUtile = !fini && (e?.numero ?? 1) >= 2 && (e?.numero ?? 1) <= 4;
 
   // Action principale : ce qui débloque le projet maintenant.
   const cta = aValider[0]
     ? { href: `#/projet/${id}/revue/${aValider[0].f.id}`, txt: aValider[0].f.categorie === 'script' ? 'Lire le script' : `Regarder la V${aValider[0].v}` }
     : livres.length ? { href: `#/projet/${id}/livraison`, txt: 'Découvrir votre livraison' }
-    : prepUtile && ficheUtile && ficheVide && (e?.numero ?? 0) >= 3 ? { href: '#preparation', txt: 'Remplir la fiche' } : null;
+    : null;
   const titreEtat = fini ? 'Projet terminé, merci !'
     : aValider[0] ? (aValider[0].f.categorie === 'script' ? 'Votre script vous attend' : 'Une nouvelle version vous attend')
     : livres.length ? svc.livraison : info.titre;
@@ -1106,7 +1096,6 @@ async function renderProjetClient(id, ancre) {
             t: f.categorie === 'script' ? `Lire le script « ${esc(f.titre)} »` : `Regarder « ${esc(f.titre)} » (V${v})`, s: 'Commentez ou validez', r: true }));
           if (livres.length) items.push({ href: `#/projet/${id}/livraison`, t: 'Découvrir votre livraison', s: esc(svc.livraison), ok: true });
           if (dernier?.par_admin && Date.now() - new Date(dernier.created_at) < 14 * 864e5) items.push({ href: '#messages', t: `Message de ${esc(nousDe(svc))}`, s: `« ${esc((dernier.contenu || '').slice(0, 70))}${(dernier.contenu || '').length > 70 ? '…' : ''} »`, msg: true });
-          if (prepUtile && ficheUtile && ficheVide && (e?.numero ?? 0) >= 3) items.push({ href: '#preparation', t: 'Remplir la fiche de préparation', s: 'Quelques minutes, en plusieurs fois si besoin' });
           return items.length ? `<ul class="tdb-liste">${items.map((x) => `<li><a href="${x.href}"${x.msg ? ' data-voir-msg' : ''}><span class="dot ${x.r ? 'r' : x.ok ? 'ok' : 'b'}"></span><span><b>${x.t}</b><small>${x.s}</small></span><span class="go">→</span></a></li>`).join('')}</ul>`
             : `<p class="tdb-vide">Rien à faire pour l’instant ✓<small>${esc(!fini && info.attendu ? 'De votre côté : ' + info.attendu : 'On s’occupe de tout. On vous prévient dès qu’il y a du nouveau.')}</small></p>`;
         })()}
@@ -1150,16 +1139,7 @@ async function renderProjetClient(id, ancre) {
         </a>`).join('')}</div>
     </section>` : ''}
 
-    ${prepUtile && ficheUtile ? `    <section class="section" id="preparation">
-      <div>
-        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour préparer le tournage'}</p>
-        <details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
-          <summary class="btn btn-line btn-sm">${ficheVide ? 'Remplir la fiche de préparation' : 'Revoir la fiche de préparation'}</summary>
-          <p class="panel-intro" style="margin-top:16px">Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
-          ${formHtml('lancement', svc.fiche, reponses)}
-        </details>
-      </div>
-    </section>` : ''}
+
 
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="messages">Échanges${(messages ?? []).length ? `<span class="count">${messages.length}</span>` : ''}</button>
@@ -1229,19 +1209,14 @@ async function renderProjetClient(id, ancre) {
   };
   app.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => montrer(b.dataset.tab)));
   montrer(ancre === 'fichiers' || ancre === 'carnet' ? ancre : 'messages');
-  const cible = { messages: 'messages', fichiers: 'fichiers', lancement: 'preparation', avancement: null }[ancre];
+  const cible = { messages: 'messages', fichiers: 'fichiers', avancement: null }[ancre];
   if (cible) setTimeout(() => document.getElementById(cible)?.scrollIntoView({ block: 'start' }), 0);
   const fil = app.querySelector('.fil'); if (fil) fil.scrollTop = fil.scrollHeight;
-  app.querySelectorAll('a[href="#preparation"]').forEach((a) => (a.onclick = (ev) => {
-    ev.preventDefault(); const d = app.querySelector('.fiche-prep'); if (d) d.open = true;
-    document.getElementById('preparation').scrollIntoView({ behavior: 'smooth' });
-  }));
   app.querySelectorAll('[data-voir-msg]').forEach((a) => (a.onclick = (ev) => {
     ev.preventDefault(); montrer('messages');
     document.getElementById('messages').scrollIntoView({ behavior: 'smooth' });
   }));
 
-  if (document.getElementById('lancement')) bindForm('lancement', (maj) => { Object.assign(reponses, maj); return sb.from('lancements').upsert({ projet_id: id, reponses }); });
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
     ev.preventDefault();
     const contenu = ev.target.contenu.value.trim();

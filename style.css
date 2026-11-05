@@ -814,3 +814,48 @@ dialog.confirmer[open]::backdrop { animation: mk-fondu .22s ease both; }
 body.sombre .tabs-ind { background: #e2384a; }
 .tabs .count { transition: transform .2s; }
 .tabs button:hover .count { transform: scale(1.1); }
+
+/* Version équipe : mêmes animations que côté client. */
+/* Listes (À faire, clients), puces de la semaine, historique, cartes : arrivée en cascade. */
+.entre :is(.liste, .semaine, .histo, .historique, .demandes) > * { animation: mk-monte .45s cubic-bezier(.2, .7, .2, 1) both; }
+.entre :is(.liste, .semaine, .histo, .historique, .demandes) > :nth-child(1) { animation-delay: .1s; }
+.entre :is(.liste, .semaine, .histo, .historique, .demandes) > :nth-child(2) { animation-delay: .16s; }
+.entre :is(.liste, .semaine, .histo, .historique, .demandes) > :nth-child(3) { animation-delay: .22s; }
+.entre :is(.liste, .semaine, .histo, .historique, .demandes) > :nth-child(4) { animation-delay: .28s; }
+.entre :is(.liste, .semaine, .histo, .historique, .demandes) > :nth-child(5) { animation-delay: .34s; }
+.entre :is(.liste, .semaine, .histo, .historique, .demandes) > :nth-child(n+6) { animation-delay: .4s; }
+/* Filtres des projets : les vignettes se réaffichent en douceur à chaque filtre. */
+.vignettes > * { animation: mk-monte .4s cubic-bezier(.2, .7, .2, 1) both; }
+.vignettes > :nth-child(2) { animation-delay: .04s; } .vignettes > :nth-child(3) { animation-delay: .08s; }
+.vignettes > :nth-child(4) { animation-delay: .12s; } .vignettes > :nth-child(n+5) { animation-delay: .16s; }
+.filtres button { transition: background .2s, color .2s, border-color .2s, transform .15s; }
+.filtres button:hover { border-color: var(--fg); color: var(--fg); }
+.filtres button:active { transform: scale(.95); }
+
+/* Lignes : survol qui éclaire, flèche et bouton qui avancent, avatar qui grossit. */
+.ligne { transition: background .2s; }
+.liste .ligne:not(.vide):hover { background: var(--soft); }
+.ligne .muted, .ligne .av { transition: transform .2s; display: inline-block; }
+.ligne:hover > .muted { transform: translateX(4px); }
+.ligne:hover .av { transform: scale(1.08); }
+.ligne .btn:hover { transform: translateX(2px); }
+/* La tâche la plus urgente : le point rouge pulse, un reflet passe. */
+.liste-titre + .ligne:not(.vide) { position: relative; overflow: hidden; isolation: isolate; }
+.liste-titre + .ligne:not(.vide)::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; z-index: -1; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(226, 56, 74, .1), transparent); animation: mk-reflet 5s 1.5s ease-in-out infinite; }
+@keyframes mk-point { 0%, 100% { box-shadow: 0 0 0 0 rgba(226, 56, 74, .55); } 50% { box-shadow: 0 0 0 5px rgba(226, 56, 74, 0); } }
+.liste-titre + .ligne .dot:not(.g):not(.b):not(.n) { animation: mk-point 2s ease-in-out infinite; }
+
+/* Puces « Cette semaine », cartes projet de la fiche client. */
+.puce { transition: transform .2s cubic-bezier(.2, .7, .2, 1), border-color .2s, box-shadow .2s; }
+.puce:hover { transform: translateY(-2px); border-color: var(--bronze); box-shadow: 0 8px 18px rgba(0, 0, 0, .3); }
+.projet { transition: transform .2s cubic-bezier(.2, .7, .2, 1), border-color .2s, box-shadow .2s; }
+.projet:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0, 0, 0, .3); }
+.entre .projet { animation: mk-monte .5s .12s cubic-bezier(.2, .7, .2, 1) both; }
+
+/* Réglages et panneaux de l'équipe : les blocs arrivent l'un après l'autre. */
+.reglages > * { animation: mk-monte .4s cubic-bezier(.2, .7, .2, 1) both; }
+.reglages > :nth-child(2) { animation-delay: .06s; } .reglages > :nth-child(3) { animation-delay: .12s; }
+.reglages > :nth-child(n+4) { animation-delay: .18s; }
+.btn-verre { transition: background .2s, transform .15s, box-shadow .2s; }
+.btn-verre:hover { transform: translateY(-1px); }
