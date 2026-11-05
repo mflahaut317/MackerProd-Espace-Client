@@ -44,7 +44,7 @@ img { max-width: 100%; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
 /* Cadre : menu à gauche, contenu à droite ------------------------------------- */
-.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; background: linear-gradient(to right, var(--side) 232px, transparent 232px); }
+.shell { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; background: linear-gradient(to right, var(--side) 231px, var(--line) 231px 232px, transparent 232px); }
 .shell:has(.side[hidden]) { background: none; }
 .shell:has(.side[hidden]) { grid-template-columns: minmax(0, 1fr); }
 .side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 18px; padding: 22px 14px; background: var(--side); border-right: 1px solid var(--line); }

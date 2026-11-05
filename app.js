@@ -1089,19 +1089,21 @@ async function renderFicheClient(id) {
     sb.from('retours').select('*').in('projet_id', ids).order('created_at', { ascending: false }).limit(30),
   ]) : [{}, {}, {}];
 
-  // Historique : tout ce qui s'est passé, le plus récent en haut.
+  // Historique des projets : les grandes étapes, les versions et les livraisons, le plus récent en haut.
   const fil = [
-    ...(messages ?? []).map((m) => ({ d: m.created_at, tag: 'Message', qui: m.par_admin ? 'Mackerprod' : 'Client', txt: m.contenu, href: `#/projet/${m.projet_id}/messages`, pid: m.projet_id })),
-    // Fichiers ajoutés ensemble (même projet, même heure) : une seule ligne.
-    ...Object.values((fichiers ?? []).reduce((g, f) => {
-      const k = `${f.projet_id}|${f.livrable}|${f.par_admin}|${f.created_at.slice(0, 13)}`;
+    ...projets.map((p) => ({ d: p.created_at, tag: 'Projet', qui: '', txt: `Projet ouvert : ${serviceDe(p).label}`, href: `#/projet/${p.id}`, pid: p.id })),
+    ...projets.flatMap((p) => (p.etapes ?? []).filter((e) => e.statut !== 'a_venir' && e.updated_at && !(serviceDe(p).masquer ?? []).includes(e.numero)).map((e) => ({
+      d: e.updated_at, tag: e.statut === 'termine' ? 'Étape terminée' : 'Étape en cours', qui: '',
+      txt: serviceDe(p).etapes[e.numero]?.titre ?? '', href: `#/projet/${p.id}`, pid: p.id }))),
+    ...Object.values((fichiers ?? []).filter((f) => f.par_admin).reduce((g, f) => {
+      const k = `${f.projet_id}|${f.livrable}|${f.created_at.slice(0, 13)}`;
       (g[k] ??= []).push(f);
       return g;
-    }, {})).map((fs) => ({ d: fs[0].created_at, tag: fs[0].livrable ? 'Livraison' : 'Fichier', qui: fs[0].par_admin ? 'Mackerprod' : 'Client',
+    }, {})).map((fs) => ({ d: fs[0].created_at, tag: fs[0].livrable ? 'Livraison' : REVUE.includes(fs[0].categorie) ? 'Version déposée' : 'Fichier', qui: '',
       txt: fs.length > 1 ? `${fs.length} fichiers : ${fs.map((f) => f.titre).join(', ')}` : fs[0].titre,
-      href: fs[0].livrable ? `#/projet/${fs[0].projet_id}/livraison` : `#/projet/${fs[0].projet_id}/fichiers`, pid: fs[0].projet_id })),
-    ...(retours ?? []).filter((r) => !r.par_admin).map((r) => ({ d: r.created_at, tag: r.type === 'validation' ? 'Validation' : 'Retour', qui: 'Client', txt: r.type === 'validation' ? 'Version validée' : r.contenu, href: `#/projet/${r.projet_id}/revue/${r.fichier_id}`, pid: r.projet_id })),
-    ...(demandes ?? []).map((x) => ({ d: x.created_at, tag: DEMANDES[x.type], qui: 'Client', txt: [x.details?.nom, x.details?.message].filter(Boolean).join(' · '), href: '', pid: x.projet_id })),
+      href: fs[0].livrable ? `#/projet/${fs[0].projet_id}/livraison` : REVUE.includes(fs[0].categorie) ? `#/projet/${fs[0].projet_id}/revue/${fs[0].id}` : `#/projet/${fs[0].projet_id}/fichiers`, pid: fs[0].projet_id })),
+    ...(retours ?? []).filter((r) => r.type === 'validation').map((r) => ({ d: r.created_at, tag: 'Validation', qui: 'Client',
+      txt: `A validé « ${(fichiers ?? []).find((f) => f.id === r.fichier_id)?.titre ?? 'une version'} »`, href: `#/projet/${r.projet_id}/revue/${r.fichier_id}`, pid: r.projet_id })),
   ].sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 25);
   const depuis = new Date(c.created_at || Date.now()).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
@@ -1142,7 +1144,7 @@ async function renderFicheClient(id) {
         </section>
 
         <section class="section">
-          <p class="label">Historique</p>
+          <p class="label">Historique des projets</p>
           <ol class="historique">${fil.map((h) => `<li>
             <span class="quand">${dateFr(h.d)}</span>
             <div><span class="tag">${esc(h.tag)}</span> <b>${esc(h.qui)}</b>${h.pid ? ` <span class="muted small">· ${esc(titre(h.pid))}</span>` : ''}
