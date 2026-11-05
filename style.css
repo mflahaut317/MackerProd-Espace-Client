@@ -329,7 +329,7 @@ body.sombre .bulle.moi { background: #2c343c; color: var(--fg); border-color: #2
 .versions { display: flex; flex-wrap: wrap; gap: 6px; }
 .versions a { display: grid; gap: 2px; padding: 6px 12px; border-radius: var(--r-s); border: 1px solid var(--line-2); text-decoration: none; font: 600 .82rem/1.1 var(--sans); color: var(--muted); text-align: center; }
 .versions a small { font-weight: 400; font-size: .7rem; }
-.versions a[aria-current] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.versions a[aria-current] { background: var(--soft); color: var(--fg); border-color: var(--bronze); }
 .note-version { margin-top: 16px; display: grid; gap: 4px; padding: 12px 14px; border-radius: var(--r); background: var(--bronze-soft); color: var(--text-2); }
 .valide { margin-top: 16px; padding: 12px 14px; border-radius: var(--r); background: var(--ok-soft); color: var(--ok); font-weight: 500; }
 .salle { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 22px; margin-top: 20px; align-items: start; }
@@ -377,13 +377,13 @@ body:not(.sombre) .composer-at b { color: var(--red); }
 .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; display: grid; place-items: center; background: var(--red); color: #fff; font: 600 .78rem/1 var(--sans); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(0, 0, 0, .4); pointer-events: none; }
 .pin.fait { background: #555; }
 .pin.nouveau { background: #ffb547; color: #12161a; }
-.script-page { background: #f7f4ef; color: #1d2329; padding: clamp(22px, 5vw, 52px); border-radius: 8px; font: 400 1.16rem/1.6 var(--serif); }
-.script-entete { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 500 .7rem/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: #6b625a; padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid rgba(29, 35, 41, .15); }
+.script-page { background: var(--card); color: var(--fg); border: 1px solid var(--line); padding: clamp(22px, 5vw, 52px); border-radius: 8px; font: 400 1.16rem/1.6 var(--serif); }
+.script-entete { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 500 .7rem/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
 .script-page .par { margin: 0 -12px 12px; padding: 6px 12px; border-left: 3px solid transparent; border-radius: 0 6px 6px 0; cursor: pointer; transition: background .15s; }
-.script-page .par:hover, .script-page .par:focus-visible { background: rgba(148, 30, 40, .06); outline: none; }
+.script-page .par:hover, .script-page .par:focus-visible { background: var(--soft); outline: none; }
 .script-page .par.commente { border-left-color: #c9a27a; }
-.script-page .par.choisi { border-left-color: #941e28; background: rgba(148, 30, 40, .09); }
-.script-page .par.flash { background: rgba(201, 162, 122, .35); }
+.script-page .par.choisi { border-left-color: #e2384a; background: rgba(226, 56, 74, .12); }
+.script-page .par.flash { background: rgba(201, 162, 122, .22); }
 .nouvelle-version .card { margin-top: 0; }
 
 /* Livraison ---------------------------------------------------------------------- */
