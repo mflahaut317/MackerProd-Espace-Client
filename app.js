@@ -1223,7 +1223,8 @@ function analyserLien(url, categorie) {
 }
 
 // Lecteur commun : temps(), duree(), enPause() renvoient des promesses ; seek(s, lire) s'y place.
-// YouTube et MP4 n'affichent pas leurs propres contrôles : la barre Mackerprod les remplace.
+// YouTube, Vimeo et MP4 n'affichent pas leurs propres contrôles : la barre Mackerprod les remplace
+// (pour Vimeo, il faut un abonnement payant ; sans lui, Vimeo garde ses boutons).
 async function monterLecteur(zone, lien, url, { barre = false } = {}) {
   const vide = { getTime: async () => null, duree: async () => null, enPause: async () => true, seek: () => {}, play: () => {}, pause: () => {}, auto: false };
   if (lien.type === 'youtube') {
@@ -1245,13 +1246,13 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
     };
   }
   if (lien.type === 'vimeo') {
-    zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}?${lien.hash ? `h=${lien.hash}&` : ''}title=0&byline=0&portrait=0&color=941e28" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+    zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}?${lien.hash ? `h=${lien.hash}&` : ''}title=0&byline=0&portrait=0&color=941e28${barre ? '&controls=0&keyboard=0' : ''}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
     await chargerScript('https://player.vimeo.com/api/player.js');
     const player = new Vimeo.Player(zone.querySelector('iframe'));
     return {
       getTime: () => player.getCurrentTime(), duree: () => player.getDuration(), enPause: () => player.getPaused(),
       seek: (s, lire = true) => { player.setCurrentTime(s); if (lire) player.play(); },
-      play: () => player.play(), pause: () => player.pause(), auto: true,
+      play: () => player.play(), pause: () => player.pause(), auto: true, propre: barre,
     };
   }
   if (lien.type === 'video') {
