@@ -672,3 +672,69 @@ body.sombre .tdb-etape .big { color: #ff7a84; }
 .pin-l { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ff5b67; }
 .pin-l.par-equipe { background: #ffb547; }
 .pin-l.fait { background: #7fb37a; }
+
+/* Animations ------------------------------------------------------------------
+   À l'arrivée sur une page (classe .entre posée par le routeur) : le contenu monte
+   en douceur, les cartes arrivent l'une après l'autre, les barres se remplissent. */
+@keyframes mk-monte { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes mk-fondu { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mk-remplit { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes mk-pop { 0% { opacity: 0; transform: scale(.6); } 70% { transform: scale(1.12); } 100% { opacity: 1; transform: none; } }
+@keyframes mk-fenetre { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes mk-descend { from { opacity: 0; transform: translate(-50%, -10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes mk-halo { 0%, 100% { box-shadow: 0 0 0 0 rgba(226, 56, 74, .45); } 50% { box-shadow: 0 0 0 6px rgba(226, 56, 74, 0); } }
+
+.page.entre > * { animation: mk-monte .5s cubic-bezier(.2, .7, .2, 1) both; }
+.page.entre > :nth-child(2) { animation-delay: .05s; } .page.entre > :nth-child(3) { animation-delay: .1s; }
+.page.entre > :nth-child(4) { animation-delay: .15s; } .page.entre > :nth-child(5) { animation-delay: .2s; }
+.page.entre > :nth-child(n+6) { animation-delay: .25s; }
+
+.entre :is(.vignettes, .tdb, .pieces, .galeries, .todo, .tdb-liste) > * { animation: mk-monte .45s cubic-bezier(.2, .7, .2, 1) both; }
+.entre :is(.vignettes, .tdb, .pieces, .galeries, .todo, .tdb-liste) > :nth-child(1) { animation-delay: .12s; }
+.entre :is(.vignettes, .tdb, .pieces, .galeries, .todo, .tdb-liste) > :nth-child(2) { animation-delay: .19s; }
+.entre :is(.vignettes, .tdb, .pieces, .galeries, .todo, .tdb-liste) > :nth-child(3) { animation-delay: .26s; }
+.entre :is(.vignettes, .tdb, .pieces, .galeries, .todo, .tdb-liste) > :nth-child(4) { animation-delay: .33s; }
+.entre :is(.vignettes, .tdb, .pieces, .galeries, .todo, .tdb-liste) > :nth-child(5) { animation-delay: .4s; }
+.entre :is(.vignettes, .tdb, .pieces, .galeries, .todo, .tdb-liste) > :nth-child(n+6) { animation-delay: .45s; }
+
+.entre :is(.pj-prog b, .vignette .bar i) { transform-origin: left; animation: mk-remplit .9s .35s cubic-bezier(.3, .8, .2, 1) both; }
+.entre .suivi li::before { transform-origin: left; animation: mk-remplit .5s cubic-bezier(.3, .8, .2, 1) both; }
+.entre .suivi li:nth-child(2)::before { animation-delay: .1s; } .entre .suivi li:nth-child(3)::before { animation-delay: .2s; }
+.entre .suivi li:nth-child(4)::before { animation-delay: .3s; } .entre .suivi li:nth-child(5)::before { animation-delay: .4s; }
+.entre .suivi li:nth-child(n+6)::before { animation-delay: .5s; }
+.entre :is(.tdb-etape .big, .focus .big) { display: inline-block; animation: mk-pop .6s .3s both; }
+
+/* Onglets : le panneau qui s'ouvre apparaît en fondu. */
+.panel:not([hidden]) { animation: mk-fondu .3s ease both; }
+/* L'étape en cours respire doucement. */
+.suivi li.now::before { animation: mk-halo 2.4s ease-in-out infinite; }
+.entre .suivi li.now::before { animation: mk-remplit .5s cubic-bezier(.3, .8, .2, 1) both, mk-halo 2.4s 1s ease-in-out infinite; }
+
+/* Survols : les cartes se soulèvent, les boutons répondent au doigt. */
+.btn { transition: background .15s, border-color .15s, transform .15s, box-shadow .2s; }
+.btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0, 0, 0, .25); }
+.btn:active { transform: translateY(0) scale(.97); box-shadow: none; }
+.vignette .th { transition: transform .25s cubic-bezier(.2, .7, .2, 1), box-shadow .25s; }
+.vignette:hover .th { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(0, 0, 0, .4); }
+:is(.piece, .galerie-carte, .livraison-banniere, .tdb-carte) { transition: transform .2s cubic-bezier(.2, .7, .2, 1), border-color .2s, box-shadow .2s; }
+:is(.piece, .galerie-carte, .livraison-banniere):hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(0, 0, 0, .3); }
+.tdb-liste a, .todo > a { transition: background .15s; }
+.tdb-liste a .go, .todo > a .go, .piece .go, .livraison-banniere .go { display: inline-block; transition: transform .2s; }
+:is(.tdb-liste a, .todo > a, .piece, .livraison-banniere):hover .go { transform: translateX(4px); }
+
+/* Lecteur : les points de commentaire apparaissent, la bulle s'ouvre, le message glisse. */
+.pin-t { animation: mk-pop .35s both; transition: transform .15s; }
+.pin-t:hover { transform: scale(1.35); }
+.salle-media:fullscreen .bulle-plein:not([hidden]) { animation: mk-fenetre .22s cubic-bezier(.2, .7, .2, 1) both; }
+.salle-media:fullscreen .bulle-ok:not([hidden]) { animation: mk-descend .3s cubic-bezier(.2, .7, .2, 1) both; }
+
+/* Fenêtres de confirmation */
+dialog.confirmer[open] { animation: mk-fenetre .22s cubic-bezier(.2, .7, .2, 1) both; }
+dialog.confirmer[open]::backdrop { animation: mk-fondu .22s ease both; }
+
+/* Menu ⋮ des vignettes */
+.v-menu[open] .v-liste { animation: mk-fenetre .16s ease both; transform-origin: top right; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
