@@ -1328,6 +1328,7 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
       getTime: () => player.getCurrentTime(), duree: () => player.getDuration(), enPause: () => player.getPaused(),
       seek: (s, lire = true) => { player.setCurrentTime(s); if (lire) player.play(); },
       play: () => player.play(), pause: () => player.pause(), auto: true, propre: barre,
+      plein: () => player.requestFullscreen().catch(() => {}),
     };
   }
   if (lien.type === 'video') {
@@ -1338,6 +1339,7 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
       getTime: async () => v.currentTime, duree: async () => (Number.isFinite(v.duration) ? v.duration : null), enPause: async () => v.paused,
       seek: (s, lire = true) => { v.currentTime = s; if (lire) v.play(); },
       play: () => v.play(), pause: () => v.pause(), auto: true, propre: barre,
+      plein: () => (v.requestFullscreen ? v.requestFullscreen() : v.webkitEnterFullscreen?.()),
     };
   }
   if (lien.type === 'drive') {
@@ -1420,6 +1422,7 @@ async function renderRevue(projetId, fichierId) {
               <button class="ico" id="pp" type="button" aria-label="Lecture"><span class="tri"></span></button>
               <span class="tc"><span id="cur">0:00</span> / <span id="dur">–:––</span></span>
               <span class="sp"></span>
+              <button class="ico" id="plein" type="button" aria-label="Plein écran" title="Plein écran"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
               <button class="btn btn-sm" id="commenter" type="button">Commenter à <span id="cur2">0:00</span></button>
             </div>
           </div>` : ''}`}
@@ -1510,6 +1513,16 @@ async function renderRevue(projetId, fichierId) {
     const minuteur = setInterval(tick, 250);
     document.getElementById('pp').onclick = async () => ((await lecteur.enPause()) ? lecteur.play() : lecteur.pause());
     if (!lecteur.propre) document.getElementById('pp').hidden = true;
+    // Plein écran : la vidéo et la barre Mackerprod ensemble ; sur iPhone, plein écran du lecteur seul.
+    const scene = document.querySelector('.salle-media');
+    const pleinBtn = document.getElementById('plein');
+    if (!scene.requestFullscreen && !scene.webkitRequestFullscreen && !lecteur.plein) pleinBtn.hidden = true;
+    pleinBtn.onclick = () => {
+      if (document.fullscreenElement || document.webkitFullscreenElement) return (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      if (scene.requestFullscreen) return scene.requestFullscreen().catch(() => lecteur.plein?.());
+      if (scene.webkitRequestFullscreen) return scene.webkitRequestFullscreen();
+      lecteur.plein?.();
+    };
     const aller = (ev) => {
       if (!dur || ev.target.closest('.pin-t')) return;
       const r = scrub.getBoundingClientRect();
