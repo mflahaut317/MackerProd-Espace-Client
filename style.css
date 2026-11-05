@@ -594,3 +594,7 @@ dialog.confirmer .form-foot { justify-content: flex-end; margin-top: 22px; }
 .planning li.cle .pl-t { font-weight: 500; color: var(--fg); }
 .planning .pl-cle { color: var(--bronze); }
 .planning .pl-auto { color: var(--ok); }
+/* Idées de mot de livraison */
+.idees-mot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.idees-mot .chip { padding: 6px 10px; border-radius: 99px; font-weight: 400; }
+.idees-mot .chip:hover, .idees-mot .chip[aria-pressed="true"] { border-color: var(--bronze); color: var(--bronze); }
