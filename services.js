@@ -6,9 +6,9 @@ const e = (titre, texte, attendu, onglet) => ({ titre, texte, attendu, onglet })
 const RIEN = 'Rien à faire : on vous recontacte sous 24 h ouvrées.';
 
 export const EQUIPE = {
-  mickael: { nom: 'Mickaël', role: 'Vidéaste monteur · télépilote drone certifié', photo: 'img/equipe-mickael.webp' },
-  maxence: { nom: 'Maxence', role: 'Vidéaste monteur', photo: 'img/equipe-maxence.webp' },
-  delphine: { nom: 'Delphine', role: 'Photographe · Stu’Dee', photo: 'img/equipe-delphine.webp' },
+  mickael: { nom: 'Mickaël', role: 'Vidéaste monteur · télépilote drone certifié', photo: 'img/equipe-mickael.webp', bio: 'Caméra à l’épaule ou drone dans le ciel, il capte vos images puis les assemble au montage.' },
+  maxence: { nom: 'Maxence', role: 'Vidéaste monteur', photo: 'img/equipe-maxence.webp', bio: 'Il filme et monte vos vidéos, et peaufine chaque version avec vous jusqu’à ce qu’elle vous ressemble.' },
+  delphine: { nom: 'Delphine', role: 'Photographe · Stu’Dee', photo: 'img/equipe-delphine.webp', bio: 'Derrière l’objectif de Stu’Dee, elle photographie vos portraits, vos familles et vos grands jours.' },
 };
 
 export const SERVICES = {

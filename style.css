@@ -781,3 +781,25 @@ dialog.confirmer[open]::backdrop { animation: mk-fondu .22s ease both; }
 .urgence:hover span.cta { transform: translateX(4px); box-shadow: 0 4px 12px rgba(0, 0, 0, .2); }
 .urgence:active { transform: translateY(-1px) scale(.99); }
 .entre .urgence { animation: mk-monte .55s .1s cubic-bezier(.2, .7, .2, 1) both; }
+
+/* Votre équipe : présentation + animations (arrivée en cascade, photo qui zoome, carte qui se soulève). */
+.eq-intro { color: var(--text-2); max-width: 60ch; margin: -2px 0 14px; }
+.equipe { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+.equipe figure { transition: transform .25s cubic-bezier(.2, .7, .2, 1), box-shadow .25s, border-color .25s; }
+.equipe figure:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(0, 0, 0, .35); border-color: var(--line-2); }
+.eq-photo { overflow: hidden; }
+.equipe .eq-photo img { transition: transform .6s cubic-bezier(.2, .7, .2, 1), filter .4s; filter: saturate(.85); }
+.equipe figure:hover .eq-photo img { transform: scale(1.06); filter: saturate(1.05); }
+.equipe figcaption { padding: 12px 14px 14px; gap: 3px; }
+.eq-bio { margin-top: 6px; font-size: .84rem; line-height: 1.45; color: var(--text-2); }
+.entre .equipe > * { animation: mk-monte .5s cubic-bezier(.2, .7, .2, 1) both; }
+.entre .equipe > :nth-child(1) { animation-delay: .2s; } .entre .equipe > :nth-child(2) { animation-delay: .3s; }
+.entre .equipe > :nth-child(3) { animation-delay: .4s; } .entre .equipe > :nth-child(n+4) { animation-delay: .5s; }
+@media (max-width: 860px) {
+  .equipe { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .equipe figure { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; }
+  .equipe .eq-photo { height: 100%; }
+  .equipe img { aspect-ratio: auto; height: 100%; min-height: 100px; object-position: center 25%; }
+  .equipe figcaption { padding: 10px 12px; }
+  .eq-bio { font-size: .8rem; margin-top: 4px; }
+}

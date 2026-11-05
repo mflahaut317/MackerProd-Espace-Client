@@ -87,7 +87,7 @@ const dateFr = (d) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', mont
 const jourFr = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 const jourCourt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const equipeHtml = (ids) => `<div class="equipe">${ids.map((k) => EQUIPE[k]).map((m) => `
-  <figure><img src="${m.photo}" alt="${esc(m.nom)}" loading="lazy"><figcaption><b>${esc(m.nom)}</b><span>${esc(m.role)}</span></figcaption></figure>`).join('')}</div>`;
+  <figure><div class="eq-photo"><img src="${m.photo}" alt="${esc(m.nom)}" loading="lazy"></div><figcaption><b>${esc(m.nom)}</b><span>${esc(m.role)}</span>${m.bio ? `<p class="eq-bio">${esc(m.bio)}</p>` : ''}</figcaption></figure>`).join('')}</div>`;
 // Prestation d'une marque de Mackerprod (ex. Stu'Dee) : mention discrète + interlocuteur.
 const signatureHtml = (svc) => {
   if (!svc.marque) return '';
@@ -353,6 +353,7 @@ async function renderClient(clientId) {
 
     <section class="section">
       <p class="label">Votre équipe</p>
+      <p class="eq-intro">Une petite équipe, un même soin : on vous accompagne du premier échange jusqu’à la livraison, et même après.</p>
       ${equipeHtml([...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))].length ? [...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))] : Object.keys(EQUIPE))}
     </section>
 
