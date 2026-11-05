@@ -1091,21 +1091,16 @@ async function renderFicheClient(id) {
     sb.from('retours').select('*').in('projet_id', ids).order('created_at', { ascending: false }).limit(30),
   ]) : [{}, {}, {}];
 
-  // Historique des projets : les grandes étapes, les versions et les livraisons, le plus récent en haut.
+  // Historique des projets : une ligne par fait marquant, le plus récent en haut.
   const fil = [
-    ...projets.map((p) => ({ d: p.created_at, tag: 'Projet', qui: '', txt: `Projet ouvert : ${serviceDe(p).label}`, href: `#/projet/${p.id}`, pid: p.id })),
-    ...projets.flatMap((p) => (p.etapes ?? []).filter((e) => e.statut !== 'a_venir' && e.updated_at && !(serviceDe(p).masquer ?? []).includes(e.numero)).map((e) => ({
-      d: e.updated_at, tag: e.statut === 'termine' ? 'Étape terminée' : 'Étape en cours', qui: '',
-      txt: serviceDe(p).etapes[e.numero]?.titre ?? '', href: `#/projet/${p.id}`, pid: p.id }))),
-    ...Object.values((fichiers ?? []).filter((f) => f.par_admin).reduce((g, f) => {
-      const k = `${f.projet_id}|${f.livrable}|${f.created_at.slice(0, 13)}`;
-      (g[k] ??= []).push(f);
-      return g;
-    }, {})).map((fs) => ({ d: fs[0].created_at, tag: fs[0].livrable ? 'Livraison' : REVUE.includes(fs[0].categorie) ? 'Version déposée' : 'Fichier', qui: '',
-      txt: fs.length > 1 ? `${fs.length} fichiers : ${fs.map((f) => f.titre).join(', ')}` : fs[0].titre,
-      href: fs[0].livrable ? `#/projet/${fs[0].projet_id}/livraison` : REVUE.includes(fs[0].categorie) ? `#/projet/${fs[0].projet_id}/revue/${fs[0].id}` : `#/projet/${fs[0].projet_id}/fichiers`, pid: fs[0].projet_id })),
-    ...(retours ?? []).filter((r) => r.type === 'validation').map((r) => ({ d: r.created_at, tag: 'Validation', qui: 'Client',
-      txt: `A validé « ${(fichiers ?? []).find((f) => f.id === r.fichier_id)?.titre ?? 'une version'} »`, href: `#/projet/${r.projet_id}/revue/${r.fichier_id}`, pid: r.projet_id })),
+    ...projets.map((p) => ({ d: p.created_at, txt: 'Projet ouvert', href: `#/projet/${p.id}`, pid: p.id })),
+    ...projets.flatMap((p) => (p.etapes ?? []).filter((e) => e.statut === 'termine' && e.updated_at && !(serviceDe(p).masquer ?? []).includes(e.numero)).map((e) => ({
+      d: e.updated_at, txt: `${serviceDe(p).etapes[e.numero]?.titre ?? 'Étape'} : étape terminée`, href: `#/projet/${p.id}`, pid: p.id }))),
+    ...groupesVersions((fichiers ?? []).slice().reverse()).flatMap((vs) => vs.filter((f) => f.par_admin).map((f) => ({
+      d: f.created_at, txt: `${f.titre} · V${vs.indexOf(f) + 1} envoyée`, href: `#/projet/${f.projet_id}/revue/${f.id}`, pid: f.projet_id }))),
+    ...(retours ?? []).filter((r) => r.type === 'validation').map((r) => ({ d: r.created_at,
+      txt: `${(fichiers ?? []).find((f) => f.id === r.fichier_id)?.titre ?? 'Version'} : validé par le client`, href: `#/projet/${r.projet_id}/revue/${r.fichier_id}`, pid: r.projet_id })),
+    ...(fichiers ?? []).filter((f) => f.livrable).slice(0, 1).map((f) => ({ d: f.created_at, txt: 'Livraison envoyée', href: `#/projet/${f.projet_id}/livraison`, pid: f.projet_id })),
   ].sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 25);
   const depuis = new Date(c.created_at || Date.now()).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
@@ -1148,10 +1143,8 @@ async function renderFicheClient(id) {
 
         <section class="section">
           <p class="label">Historique des projets</p>
-          <ol class="historique">${fil.map((h) => `<li>
-            <span class="quand">${dateFr(h.d)}</span>
-            <div><span class="tag">${esc(h.tag)}</span> <b>${esc(h.qui)}</b>${h.pid ? ` <span class="muted small">· ${esc(titre(h.pid))}</span>` : ''}
-              <p>${h.href ? `<a href="${h.href}">${esc((h.txt || '').slice(0, 220))}</a>` : esc((h.txt || '').slice(0, 220))}</p></div></li>`).join('')
+          <ol class="histo">${fil.slice(0, 8).map((h) => `<li><time>${esc(jourCourt(h.d.slice(0, 10)))}</time>
+            <a href="${h.href}">${projets.length > 1 ? `<span class="muted">${esc(titre(h.pid))} · </span>` : ''}${esc(h.txt)}</a></li>`).join('')
             || '<li><span class="empty">Rien pour l’instant.</span></li>'}</ol>
         </section>
       </div>
