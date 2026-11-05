@@ -768,3 +768,16 @@ dialog.confirmer[open]::backdrop { animation: mk-fondu .22s ease both; }
 .salle-media:fullscreen #plein:hover .c-hd { transform: translate(-2px, 2px); }
 .salle-media:fullscreen #plein:hover .c-bd { transform: translate(-2px, -2px); }
 .salle-media:fullscreen #plein:hover .c-bg { transform: translate(2px, -2px); }
+
+/* Carte « À faire en priorité » : un reflet passe de temps en temps, elle se soulève au survol,
+   la flèche avance. */
+@keyframes mk-reflet { 0%, 70% { transform: translateX(-120%) skewX(-20deg); } 100% { transform: translateX(320%) skewX(-20deg); } }
+.urgence { position: relative; overflow: hidden; isolation: isolate; transition: transform .25s cubic-bezier(.2, .7, .2, 1), box-shadow .25s; }
+.urgence:not(.calme)::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 35%; z-index: -1; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .16), transparent); animation: mk-reflet 4.5s 1.2s ease-in-out infinite; }
+.urgence:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(148, 30, 40, .35); }
+.urgence.calme:hover { box-shadow: 0 12px 26px rgba(0, 0, 0, .3); }
+.urgence span.cta { transition: transform .2s, box-shadow .2s; }
+.urgence:hover span.cta { transform: translateX(4px); box-shadow: 0 4px 12px rgba(0, 0, 0, .2); }
+.urgence:active { transform: translateY(-1px) scale(.99); }
+.entre .urgence { animation: mk-monte .55s .1s cubic-bezier(.2, .7, .2, 1) both; }
