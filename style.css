@@ -531,3 +531,9 @@ a.puce:hover { border-color: var(--line-2); }
 .signature img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
 .signature b { color: var(--bronze, #c9a27a); font-weight: 500; }
 .signature span { display: block; font-size: .82rem; }
+
+/* Relier à Google Agenda */
+.agenda-aide { margin-top: 10px; }
+.agenda-aide ol { margin: 8px 0 10px 18px; }
+.agenda-aide .copier { display: flex; gap: 8px; }
+.agenda-aide .copier input { flex: 1; min-width: 0; font-size: .8rem; }
