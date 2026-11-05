@@ -1833,6 +1833,8 @@ async function renderRevue(projetId, fichierId) {
             <div class="bulle-pied"><button type="button" class="btn-txt" id="bulle-annuler">Annuler</button><button class="btn btn-sm">Envoyer</button></div>
           </form>
           <p class="bulle-ok" id="bulle-ok" hidden>Commentaire ajouté ✓</p>` : ''}
+          ${estVideo ? `<p class="legende-pins" id="legende-pins"${commentaires.some((r) => r.temps_sec != null) ? '' : ' hidden'}>
+            <span><i class="pin-l"></i>${admin ? 'Retour du client' : 'Vos retours'}</span><span><i class="pin-l par-equipe"></i>${admin ? 'Commentaire de l’équipe' : 'Commentaire de Mackerprod'}</span><span><i class="pin-l fait"></i>Traité</span></p>` : ''}
           ${estVideo && mdpVideo(f.url) ? `<p class="mdp-video">Si Vimeo le demande, mot de passe de la vidéo : <b>${esc(mdpVideo(f.url))}</b></p>` : ''}`}
       </div>
 
@@ -1905,6 +1907,8 @@ async function renderRevue(projetId, fichierId) {
       scrub.querySelector('.pins-t').innerHTML = commentaires.filter((r) => r.temps_sec != null).map((r) =>
         `<button type="button" class="pin-t ${r.par_admin ? 'par-equipe' : ''} ${r.traite ? 'fait' : ''}" style="left:${Math.min(100, (100 * r.temps_sec) / dur)}%" data-seek="${r.temps_sec}" title="${fmtTemps(r.temps_sec)} · ${esc(r.contenu.slice(0, 80))}"></button>`).join('');
       bindSeek(scrub);
+      const leg = document.getElementById('legende-pins');
+      if (leg) leg.hidden = !commentaires.some((r) => r.temps_sec != null);
     };
     const tick = async () => {
       if (!document.body.contains(barre)) return clearInterval(minuteur);

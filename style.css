@@ -665,3 +665,10 @@ body.sombre .tdb-etape .big { color: #ff7a84; }
 .tdb-client { margin-top: 16px; }
 .tdb-client .signature { margin: auto 0 0; padding-top: 12px; border-top: 1px solid var(--line); }
 .tdb-dates .btn-txt.small { font-size: .78rem; margin-top: 2px; }
+
+/* Légende des points sur la barre de la vidéo */
+.legende-pins { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: .8rem; color: var(--muted); }
+.legende-pins span { display: inline-flex; align-items: center; gap: 7px; }
+.pin-l { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #ff5b67; }
+.pin-l.par-equipe { background: #ffb547; }
+.pin-l.fait { background: #7fb37a; }
