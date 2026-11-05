@@ -180,6 +180,31 @@ new MutationObserver(() => {
   finEntree = setTimeout(() => app.classList.remove('entre'), 1600);
 }).observe(app, { childList: true });
 
+// Onglets : un trait rouge glisse sous l'onglet choisi.
+function placerOnglets(anim) {
+  document.querySelectorAll('.tabs').forEach((nav) => {
+    let ind = nav.querySelector('.tabs-ind');
+    if (!ind) {
+      ind = document.createElement('span'); ind.className = 'tabs-ind'; nav.append(ind); nav.classList.add('a-trait');
+      // Les polices arrivent après coup et changent la largeur des onglets : on suit.
+      const ro = new ResizeObserver(() => placerOnglets(false));
+      nav.querySelectorAll('[role="tab"]').forEach((t) => ro.observe(t));
+    }
+    const sel = nav.querySelector('[role="tab"][aria-selected="true"]');
+    if (!sel || !sel.offsetWidth) { ind.style.opacity = 0; return; }
+    if (!anim) ind.style.transition = 'none';
+    ind.style.width = sel.offsetWidth + 'px';
+    ind.style.transform = `translateX(${sel.offsetLeft}px)`;
+    ind.style.opacity = 1;
+    if (!anim) { ind.offsetWidth; ind.style.transition = ''; }
+  });
+}
+new MutationObserver((ms) => {
+  const changement = ms.some((m) => m.type === 'attributes');
+  requestAnimationFrame(() => placerOnglets(changement));
+}).observe(app, { childList: true, attributes: true, subtree: true, attributeFilter: ['aria-selected'] });
+addEventListener('resize', () => placerOnglets(false));
+
 function router() {
   window.scrollTo(0, 0);
   app.classList.remove('pj-sous');
