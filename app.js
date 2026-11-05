@@ -1535,22 +1535,25 @@ async function renderRevue(projetId, fichierId) {
       if (ev.key === 'ArrowRight') lecteur.seek(t + 5, false);
       if (ev.key === 'ArrowLeft') lecteur.seek(Math.max(0, t - 5), false);
     });
-    document.getElementById('commenter').onclick = async () => {
+    // Fige l'instant courant de la vidéo (et remet l'affichage « À 1:24 » si on était en remarque générale).
+    const sansTemps = document.getElementById('sans-temps');
+    const figer = async () => {
       lecteur.pause();
       tempsFixe = (await lecteur.getTime()) ?? 0;
       champTemps.value = fmtTemps(tempsFixe);
-      document.getElementById('ancre-t').textContent = fmtTemps(tempsFixe);
+      zoneAncre.innerHTML = `À <b id="ancre-t">${fmtTemps(tempsFixe)}</b>`;
+      sansTemps.hidden = false;
+    };
+    document.getElementById('commenter').onclick = async () => { await figer(); form.contenu.focus(); };
+    // Commencer à écrire fige l'instant et met la vidéo en pause.
+    form.contenu.addEventListener('focus', () => { if (tempsFixe == null) figer(); });
+    sansTemps.onclick = () => {
+      tempsFixe = -1; champTemps.value = '';
+      zoneAncre.innerHTML = 'Remarque générale · <button type="button" class="btn-txt" id="avec-temps">remettre l’instant</button>';
+      document.getElementById('avec-temps').onclick = async () => { await figer(); form.contenu.focus(); };
+      sansTemps.hidden = true;
       form.contenu.focus();
     };
-    // Commencer à écrire fige l'instant et met la vidéo en pause.
-    form.contenu.addEventListener('focus', async () => {
-      if (tempsFixe != null) return;
-      lecteur.pause();
-      tempsFixe = (await lecteur.getTime()) ?? 0;
-      champTemps.value = fmtTemps(tempsFixe);
-      document.getElementById('ancre-t').textContent = fmtTemps(tempsFixe);
-    });
-    document.getElementById('sans-temps').onclick = () => { tempsFixe = -1; champTemps.value = ''; zoneAncre.textContent = 'Remarque générale'; form.contenu.focus(); };
     tick();
   } else if (estVideo) {
     // Drive ou lien sans API : l'instant se note à la main.
