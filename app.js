@@ -1030,28 +1030,62 @@ async function renderProjetClient(id, ancre) {
   app.innerHTML = `
     <a class="back" href="#/projets">← Mes projets</a>
 
-    <section class="pj-tete">
-      <p class="label red">${esc(svc.label)}${fini ? '' : ` · Étape ${rang + 1} sur ${visibles.length}<span class="mobile-seul"> · ${esc(svc.etapes[visibles[rang]?.numero]?.titre ?? '')}</span>`}</p>
-      <h1 class="h-l">${esc(p.titre)}</h1>
-      ${signatureHtml(svc)}
-      <div class="pj-etat">
-        <div>
-          <p class="pj-etat-t">${esc(titreEtat)}</p>
-          <p class="pj-etat-d">${esc(fini ? 'Toutes les étapes sont terminées. On reste là pour la suite.' : info.texte)}</p>
-          ${!fini && courante?.date_prevue && courante.statut !== 'termine' && courante.numero !== 5 ? `<p class="quand">Prévu le ${esc(jourFr(courante.date_prevue))}
-            · <button type="button" class="btn-txt" ${icsAttr([{ d: courante.date_prevue, titre: `${svc.etapes[courante.numero]?.titre ?? 'Mackerprod'} · ${p.titre}`, lien: lienProjet(id) }], 'mackerprod')}>Ajouter à mon agenda</button></p>` : ''}
-          ${(() => { // Livraison prévue (calculée avec la file de montage), tant qu'elle n'est pas arrivée.
-            const l = (p.etapes ?? []).find((x) => x.numero === 6);
-            return !fini && l?.date_prevue && l.statut === 'a_venir' && courante?.numero !== 6
-              ? `<p class="quand">Livraison prévue autour du ${esc(jourFr(l.date_prevue))}</p>` : '';
-          })()}
-          ${p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<p class="quand">${esc(p.prochain_rdv_note || 'Prochain rendez-vous')} : ${esc(jourFr(p.prochain_rdv))}
-            · <button type="button" class="btn-txt" ${icsAttr([{ d: p.prochain_rdv, titre: `${p.prochain_rdv_note || 'Rendez-vous'} · Mackerprod`, lien: lienProjet(id) }], 'mackerprod-rdv')}>Ajouter à mon agenda</button></p>` : ''}
-          ${!fini && !cta && info.attendu ? `<p class="attendu">De votre côté : ${esc(info.attendu)}</p>` : ''}
+    ${(() => { // Même bannière que côté équipe, sans les outils de l'équipe.
+      const img = (fichiers ?? []).filter((f) => f.par_admin && f.url && ['video', 'photo'].includes(f.categorie)).map((f) => imageDe(f.url)).find(Boolean);
+      const [c1, c2] = DEGRADES[p.type] ?? DEGRADES.site_web;
+      return `<header class="pj-banniere" style="background:linear-gradient(150deg, ${c1}, ${c2})">
+        ${img ? `<img src="${esc(img)}" alt="" onerror="this.remove()">` : ''}
+        <div class="pj-voile"></div>
+        <div class="pj-ban-in">
+          <p class="label">${esc(svc.label)}</p>
+          <h1 class="h-l">${esc(p.titre)}</h1>
+          <div class="pj-ban-bas">
+            <div class="pj-prog"><span>${fini ? 'Projet terminé' : `Étape ${rang + 1} sur ${visibles.length} · ${esc(info.titre ?? '')}`}</span>
+              <i><b style="width:${fini ? 100 : progression(p)}%"></b></i></div>
+          </div>
         </div>
-        ${cta ? `<a class="btn" href="${cta.href}">${esc(cta.txt)} →</a>` : ''}
-      </div>
-    </section>
+      </header>`;
+    })()}
+
+    <div class="tdb tdb-client">
+      <article class="tdb-carte tdb-etat">
+        <p class="label">Où on en est</p>
+        <div class="tdb-etape"><span class="big">${fini ? '✓' : rang + 1}</span>
+          <div><h3>${esc(titreEtat)}</h3><p>${esc(fini ? 'Toutes les étapes sont terminées. On reste là pour la suite.' : info.texte)}</p></div></div>
+        ${cta ? `<div class="form-foot avancer"><a class="btn btn-sm" href="${cta.href}">${esc(cta.txt)} →</a></div>` : ''}
+        ${signatureHtml(svc)}
+      </article>
+
+      <article class="tdb-carte">
+        <p class="label">De votre côté</p>
+        ${(() => {
+          const items = aValider.map(({ f, v }) => ({ href: `#/projet/${id}/revue/${f.id}`,
+            t: f.categorie === 'script' ? `Lire le script « ${esc(f.titre)} »` : `Regarder « ${esc(f.titre)} » (V${v})`, s: 'Commentez ou validez', r: true }));
+          if (livres.length) items.push({ href: `#/projet/${id}/livraison`, t: 'Découvrir votre livraison', s: esc(svc.livraison), ok: true });
+          if (dernier?.par_admin && Date.now() - new Date(dernier.created_at) < 14 * 864e5) items.push({ href: '#messages', t: `Message de ${esc(nousDe(svc))}`, s: `« ${esc((dernier.contenu || '').slice(0, 70))}${(dernier.contenu || '').length > 70 ? '…' : ''} »`, msg: true });
+          if (prepUtile && ficheUtile && ficheVide && (e?.numero ?? 0) >= 3) items.push({ href: '#preparation', t: 'Remplir la fiche de préparation', s: 'Quelques minutes, en plusieurs fois si besoin' });
+          if (prepUtile && coches.size < svc.guide.length) items.push({ href: '#preparation', t: 'Se préparer', s: `${coches.size} / ${svc.guide.length} point${svc.guide.length > 1 ? 's' : ''} prêt${coches.size > 1 ? 's' : ''}` });
+          return items.length ? `<ul class="tdb-liste">${items.map((x) => `<li><a href="${x.href}"${x.msg ? ' data-voir-msg' : ''}><span class="dot ${x.r ? 'r' : x.ok ? 'ok' : 'b'}"></span><span><b>${x.t}</b><small>${x.s}</small></span><span class="go">→</span></a></li>`).join('')}</ul>`
+            : `<p class="tdb-vide">Rien à faire pour l’instant ✓<small>${esc(!fini && info.attendu ? 'De votre côté : ' + info.attendu : 'On s’occupe de tout. On vous prévient dès qu’il y a du nouveau.')}</small></p>`;
+        })()}
+      </article>
+
+      <article class="tdb-carte">
+        <p class="label">Prochaines dates</p>
+        ${(() => {
+          const E = (n) => (p.etapes ?? []).find((x) => x.numero === n);
+          const dates = [];
+          const e4 = E(4);
+          if (e4?.date_prevue && e4.statut !== 'termine' && visibles.includes(e4)) dates.push({ d: e4.date_prevue, t: svc.etapes[4]?.titre, ics: true });
+          const e6 = E(6);
+          if (!fini && e6?.date_prevue && e6.statut === 'a_venir') dates.push({ d: e6.date_prevue, t: 'Livraison prévue (environ)' });
+          if (p.prochain_rdv && p.prochain_rdv >= aujourdhui()) dates.push({ d: p.prochain_rdv, t: p.prochain_rdv_note || 'Rendez-vous', ics: true, rdv: true });
+          dates.sort((a, b) => (a.d > b.d ? 1 : -1));
+          return dates.length ? `<ul class="tdb-dates">${dates.map((x) => `<li><span class="j">${esc(jourCourt(x.d))}</span><span>${esc(x.t)}${x.ics ? `<br><button type="button" class="btn-txt small" ${icsAttr([{ d: x.d, titre: `${x.t} · ${x.rdv ? 'Mackerprod' : p.titre}`, lien: lienProjet(id) }], x.rdv ? 'mackerprod-rdv' : 'mackerprod')}>Ajouter à mon agenda</button>` : ''}</span></li>`).join('')}</ul>`
+            : `<p class="tdb-vide">Pas encore de date<small>On vous la donne dès qu’elle est fixée.</small></p>`;
+        })()}
+      </article>
+    </div>
 
     <ol class="suivi" aria-label="Avancement du projet">${visibles.map((x, i) => {
       const cls = fini || i < rang ? 'done' : i === rang ? 'now' : 'next';
@@ -1162,6 +1196,10 @@ async function renderProjetClient(id, ancre) {
   app.querySelectorAll('a[href="#preparation"]').forEach((a) => (a.onclick = (ev) => {
     ev.preventDefault(); const d = app.querySelector('.fiche-prep'); if (d) d.open = true;
     document.getElementById('preparation').scrollIntoView({ behavior: 'smooth' });
+  }));
+  app.querySelectorAll('[data-voir-msg]').forEach((a) => (a.onclick = (ev) => {
+    ev.preventDefault(); montrer('messages');
+    document.getElementById('messages').scrollIntoView({ behavior: 'smooth' });
   }));
 
   if (document.getElementById('lancement')) bindForm('lancement', (maj) => { Object.assign(reponses, maj); return sb.from('lancements').upsert({ projet_id: id, reponses }); });
