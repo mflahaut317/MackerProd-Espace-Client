@@ -531,7 +531,7 @@ async function renderProjet(id, onglet) {
           <div><label for="f_cat">Type</label><select id="f_cat" name="categorie">
             ${Object.entries(CATEGORIES).filter(([v]) => v !== 'script').map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
           <div class="full"><label for="f_url">Lien<span class="hint">Vidéo : Vimeo, YouTube non répertorié ou MP4. Photos : lien de la galerie Pic-Time. Même nom qu’une vidéo existante = nouvelle version (V2, V3…).</span></label>
-            <input id="f_url" name="url" type="url" required placeholder="https://vimeo.com/… ou https://….pic-time.com/…"></div>
+            <input id="f_url" name="url" required placeholder="https://vimeo.com/…, code d’intégration Vimeo ou https://….pic-time.com/…"></div>
           <div class="full form-foot"><button class="btn">Ajouter</button></div>
         </form>
       </details>
@@ -619,7 +619,8 @@ async function renderProjet(id, onglet) {
 
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
     ev.preventDefault();
-    const { titre, url, categorie } = Object.fromEntries(new FormData(ev.target));
+    const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
+    const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
     if (error) return alert(error.message);
     renderProjet(id, 'fichiers');
@@ -879,7 +880,8 @@ async function renderProjetClient(id, ancre) {
   };
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
     ev.preventDefault();
-    const { titre, url, categorie } = Object.fromEntries(new FormData(ev.target));
+    const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
+    const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
     if (error) return alert(error.message);
     renderProjetClient(id, 'fichiers');
@@ -1215,12 +1217,15 @@ const chargerScript = (src) => new Promise((ok, ko) => {
 function analyserLien(url, categorie) {
   let m;
   if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/))) return { type: 'youtube', id: m[1] };
-  if ((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/([\da-f]+))?/))) return { type: 'vimeo', id: m[1], hash: m[2] };
+  if ((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/([\da-f]+))?/))) return { type: 'vimeo', id: m[1], hash: m[2] || url.match(/[?&]h=([\da-f]+)/)?.[1] };
   if ((m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]+)/))) return { type: categorie === 'video' ? 'drive' : 'drive-image', id: m[1] };
   if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url)) return { type: 'video' };
   if (/\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url)) return { type: 'image' };
   return { type: 'lien' };
 }
+
+// Un code d'intégration collé (<iframe src="…">) devient son lien.
+const nettoyerLien = (v) => (v || '').match(/src=["']([^"']+)["']/)?.[1] || (v || '').trim();
 
 // Lecteur commun : temps(), duree(), enPause() renvoient des promesses ; seek(s, lire) s'y place.
 // YouTube, Vimeo et MP4 n'affichent pas leurs propres contrôles : la barre Mackerprod les remplace
@@ -1391,7 +1396,7 @@ async function renderRevue(projetId, fichierId) {
           <form id="form-version" class="card">
             ${estScript
               ? `<label for="v_texte">Script</label><textarea id="v_texte" name="texte" rows="12" required>${esc(f.texte)}</textarea>`
-              : `<label for="v_url">Lien de la nouvelle version</label><input id="v_url" name="url" type="url" required placeholder="https://vimeo.com/…">`}
+              : `<label for="v_url">Lien de la nouvelle version</label><input id="v_url" name="url" required placeholder="Lien ou code d’intégration Vimeo">`}
             <label for="v_note">Ce qui a changé<span class="hint">Le client le lit en haut de la nouvelle version</span></label>
             <textarea id="v_note" name="note_version" rows="2" placeholder="Plan de la cuisine rallongé, musique baissée…"></textarea>
             <div class="form-foot"><button class="btn btn-sm">Déposer et prévenir le client</button></div>
@@ -1565,7 +1570,7 @@ async function renderRevue(projetId, fichierId) {
     const d = Object.fromEntries(new FormData(formVersion));
     const { data: nv, error } = await sb.from('fichiers').insert({
       projet_id: projetId, titre: f.titre, categorie: f.categorie,
-      url: d.url || null, texte: d.texte || null, note_version: d.note_version?.trim() || null,
+      url: nettoyerLien(d.url) || null, texte: d.texte || null, note_version: d.note_version?.trim() || null,
     }).select('id').single();
     if (error) return alert(error.message);
     location.hash = `#/projet/${projetId}/revue/${nv.id}`;
