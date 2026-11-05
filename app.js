@@ -47,8 +47,7 @@ const STATUTS = { a_venir: 'À venir', en_cours: 'En cours', termine: 'Terminé'
 const CHAMPS_FICHE = [
   ['nom', 'Nom et prénom'], ['entreprise', 'Entreprise'], ['telephone', 'Téléphone'],
   ['adresse', 'Adresse'], ['siret', 'SIRET', 'Si vous êtes une entreprise'],
-  ['nom_de_domaine', 'Nom de domaine', 'Ex. : monentreprise.fr. Il reste à vous.'],
-  ['registrar', 'Domaine enregistré chez', 'OVH, Gandi, IONOS…'], ['reseaux_sociaux', 'Réseaux sociaux', 'Liens Instagram, Facebook…'],
+  ['reseaux_sociaux', 'Réseaux sociaux', 'Liens Instagram, Facebook…'],
 ];
 const FICHE_ESSENTIEL = ['nom', 'telephone', 'adresse'];
 const REVUE = ['video', 'maquette', 'script'];
