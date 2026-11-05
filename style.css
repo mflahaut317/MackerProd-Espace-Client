@@ -485,7 +485,8 @@ a.puce:hover { border-color: var(--line-2); }
 .replie[open] > summary::after { content: "Replier"; }
 .replie[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .replie > form, .replie > .card { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
-.liens-sec { display: inline-flex; gap: 18px; font-size: .88rem; }
+.liens-sec { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.liens-sec .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 /* Historique court : une ligne par fait marquant. */
 .histo { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
 .histo li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: .92rem; }
