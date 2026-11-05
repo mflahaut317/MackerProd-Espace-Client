@@ -1827,7 +1827,7 @@ async function renderRevue(projetId, fichierId) {
           </article>`
         : `<div id="media"><p class="muted">Chargement du lecteur…</p></div>
           ${estVideo ? `<div class="barre" id="barre" hidden>
-            <div class="scrub" id="scrub" role="slider" aria-label="Position dans la vidéo" tabindex="0"><div class="rail"></div><div class="fill"></div><div class="pins-t"></div><div class="tete"></div></div>
+            <div class="scrub" id="scrub" role="slider" aria-label="Position dans la vidéo" tabindex="0"><div class="rail"></div><div class="fill"></div><div class="pins-t"></div><div class="tete"></div><span class="survol-t" aria-hidden="true">0:00</span></div>
             <div class="ctrl">
               <button class="ico" id="pp" type="button" aria-label="Lecture"><span class="tri"></span></button>
               <span class="tc"><span id="cur">0:00</span> / <span id="dur">–:––</span></span>
@@ -1924,13 +1924,22 @@ async function renderRevue(projetId, fichierId) {
       if (!document.body.contains(barre)) return clearInterval(minuteur);
       const [t, d, pause] = await Promise.all([lecteur.getTime(), dur ? dur : lecteur.duree(), lecteur.enPause()]);
       if (d && !dur) { dur = d; document.getElementById('dur').textContent = fmtTemps(d); majPins(); }
-      const pc = dur ? Math.min(100, (100 * (t ?? 0)) / dur) : 0;
-      scrub.querySelector('.fill').style.width = pc + '%';
-      scrub.querySelector('.tete').style.left = pc + '%';
+      if (glisse || Date.now() < gel) return;   // pendant un glissé (et juste après), c'est le doigt qui pilote la barre
+      placer(dur ? (t ?? 0) / dur : 0, !pause);
       document.getElementById('cur').textContent = document.getElementById('cur2').textContent = fmtTemps(t ?? 0);
       if (tempsFixe == null && champTemps) document.getElementById('ancre-t').textContent = fmtTemps(t ?? 0);
       document.getElementById('pp').innerHTML = pause ? '<span class="tri"></span>' : '<span class="pause"></span>';
       document.getElementById('pp').setAttribute('aria-label', pause ? 'Lecture' : 'Pause');
+    };
+    // Barre fluide : en lecture, la tête glisse en continu entre deux relevés (transition linéaire) ;
+    // en glissé, elle suit le doigt tout de suite et la vidéo suit au plus toutes les 80 ms.
+    let glisse = false, gel = 0, dernierSeek = 0, seekPrevu = null;
+    const fill = scrub.querySelector('.fill'), tete = scrub.querySelector('.tete'), survolT = scrub.querySelector('.survol-t');
+    const placer = (f, enLecture) => {
+      const pc = Math.max(0, Math.min(1, f)) * 100;
+      scrub.classList.toggle('lit', !!enLecture);
+      fill.style.width = pc + '%';
+      tete.style.left = pc + '%';
     };
     const minuteur = setInterval(tick, 250);
     document.getElementById('pp').onclick = async () => ((await lecteur.enPause()) ? lecteur.play() : lecteur.pause());
@@ -1945,13 +1954,35 @@ async function renderRevue(projetId, fichierId) {
       if (scene.webkitRequestFullscreen) return scene.webkitRequestFullscreen();
       lecteur.plein?.();
     };
-    const aller = (ev) => {
-      if (!dur || ev.target.closest('.pin-t')) return;
-      const r = scrub.getBoundingClientRect();
-      lecteur.seek(Math.max(0, Math.min(dur, ((ev.clientX - r.left) / r.width) * dur)), false);
+    const fraction = (ev) => { const r = scrub.getBoundingClientRect(); return Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)); };
+    const montrerSurvol = (f) => { if (!dur) return; survolT.textContent = fmtTemps(f * dur); survolT.style.left = f * 100 + '%'; };
+    const chercher = (sec, maintenant) => {
+      clearTimeout(seekPrevu);
+      const attente = maintenant ? 0 : Math.max(0, 80 - (Date.now() - dernierSeek));
+      seekPrevu = setTimeout(() => { dernierSeek = Date.now(); lecteur.seek(sec, false); }, attente);
     };
-    scrub.addEventListener('pointerdown', (ev) => { aller(ev); scrub.setPointerCapture(ev.pointerId); scrub.onpointermove = aller; });
-    scrub.addEventListener('pointerup', () => (scrub.onpointermove = null));
+    const aller = (ev, fin) => {
+      const f = fraction(ev);
+      placer(f, false);
+      montrerSurvol(f);
+      document.getElementById('cur').textContent = document.getElementById('cur2').textContent = fmtTemps(f * dur);
+      chercher(f * dur, fin);
+    };
+    scrub.addEventListener('pointerdown', (ev) => {
+      if (!dur || ev.target.closest('.pin-t')) return;
+      glisse = true; scrub.classList.add('glisse');
+      scrub.setPointerCapture(ev.pointerId);
+      aller(ev);
+    });
+    scrub.addEventListener('pointermove', (ev) => { if (glisse) aller(ev); else montrerSurvol(fraction(ev)); });
+    const lacher = (ev) => {
+      if (!glisse) return;
+      aller(ev, true);
+      glisse = false; scrub.classList.remove('glisse');
+      gel = Date.now() + 600;   // le temps que le lecteur arrive au nouvel instant
+    };
+    scrub.addEventListener('pointerup', lacher);
+    scrub.addEventListener('pointercancel', lacher);
     scrub.addEventListener('keydown', async (ev) => {
       const t = (await lecteur.getTime()) ?? 0;
       if (ev.key === 'ArrowRight') lecteur.seek(t + 5, false);
