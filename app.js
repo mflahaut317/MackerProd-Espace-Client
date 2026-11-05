@@ -506,7 +506,8 @@ async function renderProjet(id, onglet) {
       ${!admin && p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<div class="rdv"><p class="label bronze">Prochain rendez-vous</p>
         <p class="h-m">${esc(p.prochain_rdv_note || 'On se retrouve')} <em>${esc(jourFr(p.prochain_rdv))}</em></p></div>` : ''}
       ${admin ? `<div class="actions-rapides">
-        <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="ajout">+ Ajouter une vidéo</a>
+        <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="video">+ Vidéo</a>
+        <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="photo">+ Photos</a>
         <a class="btn btn-line" href="#/projet/${id}/messages">Écrire au client</a>
         <a class="btn-txt" href="#/client/${p.client_id}" data-libre>Fiche de ${esc(nomClient)}</a>
       </div>
@@ -569,17 +570,27 @@ async function renderProjet(id, onglet) {
           ${admin || f.ajoute_par === profil.id ? `<button class="btn-txt" data-suppr="${f.id}">Retirer</button>` : ''}
         </li>`).join('') || '<li><span class="empty">Aucun fichier pour l’instant.</span></li>'}
       </ul>
-      <details class="ajout" ${fichiers?.length ? '' : 'open'}>
+      <details class="ajout ajout-video" ${fichiers?.length ? '' : 'open'}>
         <summary class="btn btn-line">+ Ajouter une vidéo</summary>
         <form id="nouveau-fichier" class="card grid">
           <div><label for="f_titre">Nom de la vidéo</label><input id="f_titre" name="titre" required placeholder="Visite de la maison"></div>
           <div><label for="f_cat">Type</label><select id="f_cat" name="categorie">
-            ${Object.entries(CATEGORIES).filter(([v]) => v !== 'script').map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
-          <div class="full"><label for="f_url">Vidéo<span class="hint">Glissez le fichier, ou collez un lien Vimeo / YouTube. Même nom qu’une vidéo existante = nouvelle version (V2, V3…). Pour des photos : Type « Photo » et lien de la galerie Pic-Time.</span></label>
-            <input id="f_url" name="url" required placeholder="https://vimeo.com/…, code d’intégration Vimeo ou https://….pic-time.com/…"></div>
+            ${Object.entries(CATEGORIES).filter(([v]) => v !== 'script' && v !== 'photo').map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
+          <div class="full"><label for="f_url">Vidéo<span class="hint">Glissez le fichier, ou collez un lien Vimeo / YouTube. Même nom qu’une vidéo existante = nouvelle version (V2, V3…).</span></label>
+            <input id="f_url" name="url" required placeholder="https://vimeo.com/… ou code d’intégration Vimeo"></div>
           <div class="full form-foot"><button class="btn">Ajouter</button></div>
         </form>
       </details>
+      ${admin ? `<details class="ajout ajout-photo">
+        <summary class="btn btn-line">+ Ajouter une galerie photo</summary>
+        <form id="nouvelle-galerie" class="card grid">
+          <input type="hidden" name="categorie" value="photo">
+          <div class="full"><label for="g_titre">Nom de la galerie</label><input id="g_titre" name="titre" required placeholder="Photos du mariage"></div>
+          <div class="full"><label for="g_url">Lien de la galerie Pic-Time<span class="hint">Copiez le lien de partage de la galerie dans Pic-Time. Le client la retrouve sur son projet et sur sa page de livraison.</span></label>
+            <input id="g_url" name="url" type="url" required placeholder="https://….pic-time.com/…"></div>
+          <div class="full form-foot"><button class="btn">Ajouter la galerie</button></div>
+        </form>
+      </details>` : ''}
       ${admin ? `<details class="ajout">
         <summary class="btn btn-line">+ Écrire un script à faire valider</summary>
         <form id="nouveau-script" class="card">
@@ -607,7 +618,7 @@ async function renderProjet(id, onglet) {
   app.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => montrer(b.dataset.tab)));
   app.querySelectorAll(`a[href^="#/projet/${id}/"]`).forEach((a) => (a.onclick = (ev) => {
     ev.preventDefault(); montrer(a.getAttribute('href').split('/').pop());
-    if (a.dataset.ouvrir) { const d = app.querySelector('[data-panel="fichiers"] details.ajout'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }
+    if (a.dataset.ouvrir) { const d = app.querySelector(`[data-panel="fichiers"] details.ajout-${a.dataset.ouvrir}`); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }
   }));
   montrer(actif);
 
@@ -682,14 +693,18 @@ async function renderProjet(id, onglet) {
     document.querySelector('#nouveau-fichier .depot-vimeo').hidden = !video;
     document.querySelector('label[for="f_url"]').firstChild.textContent = video ? 'Vidéo' : 'Lien';
   };
-  document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
+  const ajouterFichier = async (ev) => {
     ev.preventDefault();
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
     const url = nettoyerLien(brut);
+    if (categorie === 'photo' && !estPicTime(url) && !confirm('Ce lien ne ressemble pas à une galerie Pic-Time. L’ajouter quand même ?')) return;
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
     if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
   };
+  document.getElementById('nouveau-fichier').onsubmit = ajouterFichier;
+  const formGalerie = document.getElementById('nouvelle-galerie');
+  if (formGalerie) formGalerie.onsubmit = ajouterFichier;
   const formScript = document.getElementById('nouveau-script');
   if (formScript) formScript.onsubmit = async (ev) => {
     ev.preventDefault();
