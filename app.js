@@ -552,7 +552,7 @@ async function renderProjet(id, onglet) {
     <a class="back" href="#/projets">← Projets</a>
     <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ` · <a href="#/client/${p.client_id}">${esc(nomClient)}${p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : ''}</a>` : ''}</p>
     <div class="hello"><h1 class="h-l">${esc(p.titre)}</h1>
-      ${admin ? `<span class="liens-sec"><a class="btn-txt" href="#/projet/${id}/lancement">Réponses du client${lancementVide ? '' : ' ✓'}</a><a class="btn-txt" href="#/projet/${id}/reglages">Réglages</a></span>` : ''}</div>
+      ${admin ? `<span class="liens-sec"><a class="btn btn-line btn-sm" href="#/projet/${id}/lancement"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l2 2v14H6V6zM9 10h6M9 14h6M9 18h3"/></svg>Réponses du client${lancementVide ? '' : ' ✓'}</a><a class="btn btn-line btn-sm" href="#/projet/${id}/reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Réglages</a></span>` : ''}</div>
 
     ${(fichiers ?? []).some((f) => f.livrable) ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
       <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">${admin ? 'Voir la page client' : 'Découvrir'} →</span></a>` : ''}
