@@ -591,3 +591,6 @@ dialog.confirmer .coche { display: flex; gap: 8px; align-items: center; font-wei
 dialog.confirmer .form-foot { justify-content: flex-end; margin-top: 22px; }
 .btn.danger-plein { background: #b3262f; }
 .btn.danger-plein:hover { background: #c92f39; }
+.planning li.cle .pl-t { font-weight: 500; color: var(--fg); }
+.planning .pl-cle { color: var(--bronze); }
+.planning .pl-auto { color: var(--ok); }

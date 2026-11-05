@@ -13,6 +13,7 @@ export const EQUIPE = {
 
 export const SERVICES = {
   corporate: {
+    montage: 10, file: 'video', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
     label: 'Film d’entreprise & événement', cible: 'pro',
     livraison: 'Votre film est prêt',
     equipe: ['mickael', 'maxence', 'delphine'],
@@ -47,6 +48,7 @@ export const SERVICES = {
   },
 
   immobilier: {
+    montage: 2, file: 'video', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
     label: 'Immobilier & drone', cible: 'pro',
     masquer: [3], // pas de script ni de questionnaire : on passe de la signature au tournage
     livraison: 'Votre bien, en images',
@@ -82,6 +84,7 @@ export const SERVICES = {
   },
 
   frame2: {
+    montage: 5, file: 'video', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
     label: 'Frame² · contenu réseaux', cible: 'pro',
     livraison: 'Vos contenus sont prêts',
     equipe: ['mickael', 'maxence', 'delphine'],
@@ -117,6 +120,7 @@ export const SERVICES = {
   },
 
   site_web: {
+    montage: 15, file: 'video', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
     label: 'Site internet', cible: 'pro',
     livraison: 'Votre site est prêt',
     equipe: ['mickael', 'maxence', 'delphine'],
@@ -149,6 +153,7 @@ export const SERVICES = {
   },
 
   mariage: {
+    montage: 30, file: 'video', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
     label: 'Mariage · film & photo', cible: 'particulier',
     livraison: 'Votre mariage, en images',
     equipe: ['mickael', 'maxence', 'delphine'],
@@ -183,6 +188,7 @@ export const SERVICES = {
   },
 
   evenement: {
+    montage: 10, file: 'video', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
     label: 'Événement familial', cible: 'particulier',
     livraison: 'Vos souvenirs sont prêts',
     equipe: ['mickael', 'maxence', 'delphine'],
@@ -213,6 +219,7 @@ export const SERVICES = {
   },
 
   seance_photo: {
+    montage: 5, file: 'photo', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
     label: 'Séance photo · Stu’Dee', cible: 'particulier',
     // Stu'Dee fait partie de Mackerprod : simple mention sous le titre, Delphine comme interlocutrice.
     marque: 'Stu’Dee Photographie', interlocuteur: 'delphine',

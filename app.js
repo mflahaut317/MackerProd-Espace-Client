@@ -597,15 +597,18 @@ async function renderProjet(id, onglet) {
       <a class="btn-txt" href="#/projet/${id}/avancement">← Retour au projet</a>
       <div class="reglages">
         <div class="reglage">
-          <div class="reglage-tete"><h3>Planning</h3><p>Une date par étape (elle part dans l’agenda). « Passer ici » déplace le projet à cette étape.</p></div>
-          <ol class="planning">${tri(p.etapes).map((e) => `
-            <li class="${e.statut}">
+          <div class="reglage-tete"><h3>Planning</h3><p>Saisissez seulement la date ${svc.cible === 'particulier' ? 'du jour J ou de la séance' : 'du tournage'}. Le montage et la livraison se calculent tout seuls avec la file de montage (${svc.montage} jours ouvrés de montage, un projet à la fois). Les étapes avancent toutes seules : vidéo déposée, puis livrable coché.</p></div>
+          <ol class="planning">${tri(p.etapes).map((e) => {
+            const auto = [5, 6].includes(e.numero), cle = e.numero === 4;
+            return `
+            <li class="${e.statut}${cle ? ' cle' : ''}">
               <span class="pl-n">${e.numero}</span>
-              <span class="pl-t">${esc(svc.etapes[e.numero]?.titre)}${(svc.masquer ?? []).includes(e.numero) ? ' <small>(masquée au client)</small>' : ''}</span>
+              <span class="pl-t">${esc(svc.etapes[e.numero]?.titre)}${(svc.masquer ?? []).includes(e.numero) ? ' <small>(masquée au client)</small>' : ''}${cle ? ' <small class="pl-cle">date à saisir</small>' : ''}${auto ? (e.date_forcee ? ` <small>date fixée à la main · <button type="button" class="btn-txt" data-auto="${e.numero}">revenir au calcul</button></small>` : ' <small class="pl-auto">calculée</small>') : ''}</span>
               <span class="pl-s">${e.statut === 'en_cours' ? '<span class="badge red">En cours</span>' : e.statut === 'termine' ? '<span class="badge ok">Fait</span>' : ''}</span>
-              <input type="date" class="date-etape" data-projet="${id}" data-numero="${e.numero}" value="${e.date_prevue ?? ''}" aria-label="Date de l’étape ${e.numero}">
+              <input type="date" class="date-etape" data-projet="${id}" data-numero="${e.numero}" value="${e.date_prevue ?? ''}" aria-label="Date de l’étape ${e.numero}"${auto && !e.date_forcee ? ' title="Calculée automatiquement. La changer la fixe à la main."' : ''}>
               <span class="pl-a">${e.statut === 'en_cours' ? '' : `<button type="button" class="btn-txt" data-aller="${e.numero}">${e.statut === 'termine' ? 'Revenir ici' : 'Passer ici'}</button>`}</span>
-            </li>`).join('')}</ol>
+            </li>`;
+          }).join('')}</ol>
         </div>
 
         <div class="reglage">
@@ -755,10 +758,19 @@ async function renderProjet(id, onglet) {
     if (error) alert(messageErreur(error));
   }));
 
+  // Planning : montage (5) et livraison (6) sont calculés par la base ; une date saisie à la main
+  // y est « forcée », la vider revient au calcul. Toute autre date relance le calcul de la file.
   app.querySelectorAll('.date-etape').forEach((d) => (d.onchange = async () => {
-    const { error } = await sb.from('etapes').update({ date_prevue: d.value || null })
-      .eq('projet_id', d.dataset.projet).eq('numero', Number(d.dataset.numero));
-    if (error) alert(messageErreur(error));
+    const n = Number(d.dataset.numero);
+    const maj = { date_prevue: d.value || null, ...([5, 6].includes(n) ? { date_forcee: !!d.value } : {}) };
+    const { error } = await sb.from('etapes').update(maj).eq('projet_id', d.dataset.projet).eq('numero', n);
+    if (error) return alert(messageErreur(error));
+    if (d.closest('[data-panel="reglages"]')) renderProjet(id, 'reglages');
+  }));
+  app.querySelectorAll('[data-auto]').forEach((b) => (b.onclick = async () => {
+    const { error } = await sb.from('etapes').update({ date_forcee: false }).eq('projet_id', id).eq('numero', Number(b.dataset.auto));
+    if (error) return alert(messageErreur(error));
+    renderProjet(id, 'reglages');
   }));
 
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
@@ -920,8 +932,13 @@ async function renderProjetClient(id, ancre) {
         <div>
           <p class="pj-etat-t">${esc(titreEtat)}</p>
           <p class="pj-etat-d">${esc(fini ? 'Toutes les étapes sont terminées. On reste là pour la suite.' : info.texte)}</p>
-          ${!fini && courante?.date_prevue && courante.statut !== 'termine' ? `<p class="quand">Prévu le ${esc(jourFr(courante.date_prevue))}
+          ${!fini && courante?.date_prevue && courante.statut !== 'termine' && courante.numero !== 5 ? `<p class="quand">Prévu le ${esc(jourFr(courante.date_prevue))}
             · <button type="button" class="btn-txt" ${icsAttr([{ d: courante.date_prevue, titre: `${svc.etapes[courante.numero]?.titre ?? 'Mackerprod'} · ${p.titre}`, lien: lienProjet(id) }], 'mackerprod')}>Ajouter à mon agenda</button></p>` : ''}
+          ${(() => { // Livraison prévue (calculée avec la file de montage), tant qu'elle n'est pas arrivée.
+            const l = (p.etapes ?? []).find((x) => x.numero === 6);
+            return !fini && l?.date_prevue && l.statut === 'a_venir' && courante?.numero !== 6
+              ? `<p class="quand">Livraison prévue autour du ${esc(jourFr(l.date_prevue))}</p>` : '';
+          })()}
           ${p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<p class="quand">${esc(p.prochain_rdv_note || 'Prochain rendez-vous')} : ${esc(jourFr(p.prochain_rdv))}
             · <button type="button" class="btn-txt" ${icsAttr([{ d: p.prochain_rdv, titre: `${p.prochain_rdv_note || 'Rendez-vous'} · Mackerprod`, lien: lienProjet(id) }], 'mackerprod-rdv')}>Ajouter à mon agenda</button></p>` : ''}
           ${!fini && !cta && info.attendu ? `<p class="attendu">De votre côté : ${esc(info.attendu)}</p>` : ''}
@@ -932,7 +949,8 @@ async function renderProjetClient(id, ancre) {
 
     <ol class="suivi" aria-label="Avancement du projet">${visibles.map((x, i) => {
       const cls = fini || i < rang ? 'done' : i === rang ? 'now' : 'next';
-      const quand = cls === 'done' ? jourCourt(x.updated_at.slice(0, 10)) : x.date_prevue ? `Prévu le ${jourCourt(x.date_prevue)}` : cls === 'now' ? 'En cours' : '';
+      // Montage : la date calculée est celle du début, peu parlante pour le client.
+      const quand = cls === 'done' ? jourCourt(x.updated_at.slice(0, 10)) : x.date_prevue && x.numero !== 5 ? `Prévu le ${jourCourt(x.date_prevue)}` : cls === 'now' ? 'En cours' : '';
       return `<li class="${cls}"><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t">${esc(svc.etapes[x.numero]?.titre)}</span><span class="d">${esc(quand)}</span></li>`;
     }).join('')}</ol>
 
