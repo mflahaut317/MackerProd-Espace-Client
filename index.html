@@ -3,37 +3,42 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fbfaf8">
   <title>Espace client · Mackerprod</title>
   <meta name="robots" content="noindex">
   <link rel="icon" type="image/png" href="logo-mackerprod.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@300;400;500&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Jost:wght@300;400;500;600&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="header">
-    <div class="wrap header-in">
-      <a class="logo" href="#/">
-        <img class="logo-img" src="logo-mackerprod.png" alt="Mackerprod">
-        <span><b>ESPACE CLIENT</b><small id="who">Votre projet, au même endroit</small></span>
-      </a>
-      <button id="logout" class="btn btn-line btn-sm" hidden>Se déconnecter</button>
-    </div>
-  </header>
+  <div class="shell">
+    <aside class="side" id="side" hidden>
+      <a class="side-logo" href="#/"><img src="logo-mackerprod.png" alt="Mackerprod"></a>
+      <nav class="side-nav" id="nav"></nav>
+      <div class="side-foot">
+        <p class="side-who" id="who"></p>
+        <button id="logout" class="btn-txt" hidden>Se déconnecter</button>
+      </div>
+    </aside>
 
-  <main id="app" class="wrap">
-    <p class="muted pad">Chargement…</p>
-  </main>
-
-  <footer class="foot">
-    <div class="wrap foot-in">
-      <span><b>Réponse sous 24 h ouvrées</b></span>
-      <span>Vos fichiers et vos données restent à vous</span>
-      <a href="tel:+33749437369">07 49 43 73 69</a>
-      <a href="mailto:contact@mackerprod.com">contact@mackerprod.com</a>
+    <div class="main-col">
+      <header class="topbar" id="topbar" hidden>
+        <a href="#/"><img src="logo-mackerprod.png" alt="Mackerprod"></a>
+      </header>
+      <main id="app" class="page">
+        <p class="muted">Chargement…</p>
+      </main>
+      <footer class="foot" id="foot">
+        <span>Réponse sous 24 h ouvrées</span>
+        <span>Vos fichiers et vos données restent à vous</span>
+        <a href="tel:+33749437369">07 49 43 73 69</a>
+        <a href="mailto:contact@mackerprod.com">contact@mackerprod.com</a>
+      </footer>
     </div>
-  </footer>
+  </div>
+  <nav class="tabbar" id="tabbar" hidden></nav>
 
   <script type="module" src="app.js"></script>
 </body>
