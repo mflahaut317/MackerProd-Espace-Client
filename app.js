@@ -1127,7 +1127,8 @@ async function renderFicheClient(id) {
           <div class="projets">${projets.filter((p) => !estFini(p)).map((p) => `
             <a class="projet" href="#/projet/${p.id}">
               <div class="projet-top"><div><p class="label bronze">${esc(serviceDe(p).label)}</p><h2 class="h-m">${esc(p.titre)}</h2></div><span class="ouvrir">Ouvrir →</span></div>
-              ${parcoursHtml(p)}
+              <div class="parcours-court">${parcoursHtml(p)}</div>
+              <p class="etat-court">${(() => { const e = etapeCourante(p.etapes); return e ? `${e.statut === 'termine' ? 'Terminé' : 'En cours'} : ${esc(serviceDe(p).etapes[e.numero]?.titre ?? '')}` : ''; })()}</p>
             </a>`).join('') || '<p class="empty">Aucun projet en cours.</p>'}
           </div>
           ${projets.some(estFini) ? `<p class="muted small" style="margin-top:12px">Terminés : ${projets.filter(estFini).map((p) => `<a href="#/projet/${p.id}">${esc(p.titre)}</a>`).join(' · ')}</p>` : ''}

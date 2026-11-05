@@ -493,3 +493,6 @@ a.puce:hover { border-color: var(--line-2); }
 .histo time { color: var(--bronze); font-variant-numeric: tabular-nums; }
 .histo a { text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .histo a:hover { text-decoration: underline; }
+/* Cartes projet de la fiche client : la barre seule, puis l'état en une ligne. */
+.parcours-court .t, .parcours-court .s, .parcours-court .aller { display: none !important; }
+.etat-court { margin-top: 8px; font-size: .88rem; color: var(--text-2); }
