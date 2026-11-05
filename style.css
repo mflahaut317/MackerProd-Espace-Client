@@ -510,3 +510,13 @@ a.puce:hover { border-color: var(--line-2); }
 .salle-media:-webkit-full-screen { display: flex; flex-direction: column; background: #000; width: 100%; height: 100%; }
 .salle-media:-webkit-full-screen #media { flex: 1; min-height: 0; display: flex; }
 .salle-media:-webkit-full-screen .ratio { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; }
+
+/* Dépôt d'une vidéo directement sur Vimeo (équipe) */
+.depot-vimeo { border: 1.5px dashed var(--line-2); border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; text-align: center; font-size: .9rem; transition: border-color .15s, background .15s; }
+.depot-vimeo.survol { border-color: #ff5b67; background: rgba(255, 91, 103, .06); }
+.depot-vimeo .prog { height: 4px; border-radius: 2px; background: var(--line-2); margin: 10px 0 4px; overflow: hidden; }
+.depot-vimeo .prog > div { height: 100%; width: 0; background: #ff5b67; transition: width .2s; }
+.depot-vimeo .etat:empty { display: none; }
+.depot-vimeo .etat { margin-top: 6px; color: var(--text-2); }
+.mdp-video { margin-top: 10px; font-size: .88rem; color: var(--text-2); }
+.mdp-video b { color: var(--fg); letter-spacing: .04em; user-select: all; }

@@ -659,6 +659,7 @@ async function renderProjet(id, onglet) {
     renderProjet(id, 'messages');
   };
 
+  zoneVimeo(document.getElementById('f_url'), () => document.getElementById('f_titre').value.trim());
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
     ev.preventDefault();
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
@@ -1285,6 +1286,69 @@ function analyserLien(url, categorie) {
 
 // Un code d'intégration collé (<iframe src="…">) devient son lien.
 const nettoyerLien = (v) => (v || '').match(/src=["']([^"']+)["']/)?.[1] || (v || '').trim();
+// Mot de passe Vimeo rangé dans le lien (#mdp=…) quand la formule n'a pas « Non répertorié ».
+const mdpVideo = (url) => (url || '').match(/#mdp=([\w-]+)/)?.[1] ?? null;
+
+// Équipe : glisser un fichier vidéo l'envoie directement sur le compte Vimeo de Mackerprod
+// (via la fonction vimeo-upload), puis remplit le champ « Lien ».
+function zoneVimeo(champ, nomDuFichier) {
+  if (!champ) return;
+  const z = document.createElement('div');
+  z.className = 'depot-vimeo';
+  z.innerHTML = `<input type="file" accept="video/*" hidden>
+    <p><b>Glissez la vidéo ici</b> ou <button type="button" class="btn-txt">choisissez un fichier</button> : elle part directement sur Vimeo.</p>
+    <div class="prog" hidden><div></div></div>
+    <p class="etat small" aria-live="polite"></p>`;
+  champ.before(z);
+  const entree = z.querySelector('input'), etat = z.querySelector('.etat'), prog = z.querySelector('.prog');
+  const envoi = champ.form.querySelector('.form-foot .btn');
+  z.querySelector('button').onclick = () => entree.click();
+  ['dragenter', 'dragover'].forEach((t) => z.addEventListener(t, (e) => { e.preventDefault(); z.classList.add('survol'); }));
+  ['dragleave', 'drop'].forEach((t) => z.addEventListener(t, () => z.classList.remove('survol')));
+  z.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) envoyer(e.dataTransfer.files[0]); });
+  entree.onchange = () => entree.files[0] && envoyer(entree.files[0]);
+  const garde = (e) => { e.preventDefault(); e.returnValue = ''; };
+
+  async function envoyer(f) {
+    if (!f.type.startsWith('video/')) { etat.textContent = 'Ce fichier n’est pas une vidéo.'; return; }
+    envoi.disabled = true;
+    etat.textContent = 'Préparation de l’envoi…';
+    const { data, error } = await sb.functions.invoke('vimeo-upload', {
+      body: { nom: nomDuFichier() || f.name.replace(/\.[^.]+$/, ''), taille: f.size },
+    });
+    if (error || data?.error) {
+      envoi.disabled = false;
+      etat.textContent = data?.error || (await error?.context?.json?.().catch(() => null))?.error || 'Envoi impossible pour l’instant.';
+      return;
+    }
+    try {
+      const { Upload } = await import('https://cdn.jsdelivr.net/npm/tus-js-client@4.1.0/+esm');
+      prog.hidden = false;
+      window.addEventListener('beforeunload', garde);
+      await new Promise((ok, ko) => new Upload(f, {
+        uploadUrl: data.upload_link,
+        retryDelays: [0, 3000, 10000, 30000],
+        onProgress: (fait, total) => {
+          const pc = Math.floor((100 * fait) / total);
+          prog.firstElementChild.style.width = pc + '%';
+          etat.textContent = `Envoi sur Vimeo… ${pc} % · gardez cette page ouverte`;
+        },
+        onSuccess: ok, onError: ko,
+      }).start());
+    } catch {
+      etat.textContent = 'L’envoi a été interrompu. Réessayez.';
+      envoi.disabled = false;
+      return;
+    } finally {
+      window.removeEventListener('beforeunload', garde);
+    }
+    champ.value = data.lien + (data.mdp ? `#mdp=${data.mdp}` : '');
+    const cat = champ.form.querySelector('[name="categorie"]');
+    if (cat) cat.value = 'video';
+    etat.textContent = 'Envoyée sur Vimeo ✓ Validez le formulaire. Vimeo met quelques minutes à préparer la lecture.';
+    envoi.disabled = false;
+  }
+}
 
 // Lecteur commun : temps(), duree(), enPause() renvoient des promesses ; seek(s, lire) s'y place.
 // YouTube, Vimeo et MP4 n'affichent pas leurs propres contrôles : la barre Mackerprod les remplace
@@ -1425,7 +1489,8 @@ async function renderRevue(projetId, fichierId) {
               <button class="ico" id="plein" type="button" aria-label="Plein écran" title="Plein écran"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
               <button class="btn btn-sm" id="commenter" type="button">Commenter à <span id="cur2">0:00</span></button>
             </div>
-          </div>` : ''}`}
+          </div>` : ''}
+          ${estVideo && mdpVideo(f.url) ? `<p class="mdp-video">Si Vimeo le demande, mot de passe de la vidéo : <b>${esc(mdpVideo(f.url))}</b></p>` : ''}`}
       </div>
 
       <aside class="salle-side">
@@ -1651,6 +1716,7 @@ async function renderRevue(projetId, fichierId) {
   };
 
   const formVersion = document.getElementById('form-version');
+  if (formVersion && !estScript) zoneVimeo(document.getElementById('v_url'), () => `${f.titre} · V${versions.length + 1}`);
   if (formVersion) formVersion.onsubmit = async (ev) => {
     ev.preventDefault();
     const d = Object.fromEntries(new FormData(formVersion));
