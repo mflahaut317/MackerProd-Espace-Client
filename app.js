@@ -471,6 +471,47 @@ function vignetteProjet(p, fichiers, { st = '', stCls = '', tc = '', sous = '', 
         <button type="button" role="menuitem" class="v-danger" data-v-suppr="${p.id}" data-titre="${esc(p.titre)}">Supprimer le projet</button></div></div></div>`;
 }
 
+// Mot de livraison : quelques idées prêtes, adaptées au client et à la prestation (vouvoiement).
+// L'équipe en choisit une et la modifie, ou écrit son propre mot.
+function motsLivraison(p, svc, nomClient) {
+  const nom = (nomClient || '').trim();
+  const prenoms = nom.includes('@') ? '' : nom.split(/\s+/).length > 1 ? nom.replace(/\s+\S+$/, '') : nom;
+  const a = (txt) => (prenoms ? `${prenoms}, ${txt}` : txt.charAt(0).toUpperCase() + txt.slice(1));
+  const titre = p.titre ? `« ${p.titre} »` : 'votre projet';
+  switch (p.type) {
+    case 'mariage': return [
+      ['Chaleureux', a('merci de nous avoir fait une place dans votre journée. Nous avons pris un immense plaisir à filmer et photographier votre mariage. Voici vos souvenirs : on espère qu’ils vous feront revivre chaque émotion, aujourd’hui comme dans vingt ans.')],
+      ['Émouvant', a('votre film est prêt. Installez-vous confortablement, montez le son et laissez-vous replonger dans votre journée. Merci pour votre confiance, et tous nos vœux de bonheur.')],
+      ['Court', a('voici vos souvenirs. Merci pour votre confiance et pour ce beau moment partagé.')],
+    ];
+    case 'evenement': return [
+      ['Chaleureux', a('merci de nous avoir confié ce moment. Vos souvenirs sont prêts : on espère qu’ils vous plairont autant qu’on a aimé les réaliser.')],
+      ['Souvenir', a('voici le film et les photos de ce beau moment en famille. Prenez le temps de les regarder, de les partager, et de les garder précieusement.')],
+      ['Court', a('vos souvenirs sont prêts. Merci pour votre confiance !')],
+    ];
+    case 'seance_photo': return [
+      ['Chaleureux', a('merci pour cette jolie séance. Vos photos sont prêtes : on espère qu’elles vous ressemblent et qu’elles vous plairont longtemps.')],
+      ['Tirages', a('votre galerie est en ligne. Choisissez vos préférées : nous pouvons aussi les imprimer en tirages ou en album, il suffit de nous écrire.')],
+      ['Court', a('vos photos sont prêtes. Merci pour votre confiance !')],
+    ];
+    case 'immobilier': return [
+      ['Pro', a(`voici les images de ${titre}. Elles sont prêtes à être publiées sur vos annonces et vos réseaux. Merci pour votre confiance, et à très vite pour le prochain bien.`)],
+      ['Formats', a(`la vidéo et les photos de ${titre} sont prêtes, dans tous les formats prévus. Besoin d’un format court en plus pour les réseaux ? Écrivez-nous.`)],
+      ['Court', a('tout est prêt ci-dessous. Bonne vente !')],
+    ];
+    case 'site_web': return [
+      ['Pro', a('votre site est en ligne. Le nom de domaine et les fichiers restent à vous. Merci pour votre confiance, et n’hésitez pas à nous écrire pour toute évolution.')],
+      ['Lancement', a('c’est le grand jour : votre site est publié. Partagez-le autour de vous, et dites-nous ce que vos clients en pensent.')],
+      ['Court', a('votre site est prêt. Merci pour cette collaboration !')],
+    ];
+    default: return [
+      ['Pro', a(`merci pour votre confiance. ${svc.livraison} : vous trouverez ci-dessous tous les fichiers, dans les formats prévus. N’hésitez pas à nous écrire pour une déclinaison ou un nouveau format.`)],
+      ['Collaboration', a(`ce fut un plaisir de travailler avec vous sur ${titre}. Tout est prêt ci-dessous. Au plaisir de vous retrouver pour le prochain projet.`)],
+      ['Court', a('tout est prêt ci-dessous. Merci pour cette collaboration !')],
+    ];
+  }
+}
+
 function parcoursHtml(p, editable = false) {
   const projetId = p.id, svc = serviceDe(p);
   const etapes = editable ? tri(p.etapes) : etapesVisibles(p);
@@ -622,8 +663,10 @@ async function renderProjet(id, onglet) {
 
         <div class="reglage">
           <div class="reglage-tete"><h3>Mot de livraison</h3><p>En haut de la page de livraison. Les fichiers à livrer se cochent dans Fichiers (« Livrable final »).</p></div>
-          <form id="mot-livraison"><textarea name="mot" rows="3" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
-            <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
+          <form id="mot-livraison"><textarea name="mot" rows="4" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
+            <div class="idees-mot"><span class="muted small">Idées :</span>${motsLivraison(p, svc, nomClient).map(([t, m], i) =>
+              `<button type="button" class="chip" data-mot="${i}" title="${esc(m)}">${esc(t)}</button>`).join('')}</div>
+            <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span><span class="muted small">Choisissez une idée puis modifiez-la, ou écrivez ce que vous voulez.</span></div></form>
         </div>
 
         <div class="reglage">
@@ -723,7 +766,16 @@ async function renderProjet(id, onglet) {
   montrer(actif);
 
   const motForm = document.getElementById('mot-livraison');
-  if (motForm) bindForm('mot-livraison', ({ mot }) => sb.from('projets').update({ mot_livraison: mot || null }).eq('id', id));
+  if (motForm) {
+    bindForm('mot-livraison', ({ mot }) => sb.from('projets').update({ mot_livraison: mot || null }).eq('id', id));
+    const idees = motsLivraison(p, svc, nomClient);
+    motForm.querySelectorAll('[data-mot]').forEach((b) => (b.onclick = () => {
+      const zone = motForm.querySelector('textarea');
+      zone.value = idees[Number(b.dataset.mot)][1];
+      zone.focus();
+      motForm.querySelectorAll('[data-mot]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    }));
+  }
   if (document.getElementById('prochain-rdv')) bindForm('prochain-rdv', ({ prochain_rdv, prochain_rdv_note }) =>
     sb.from('projets').update({ prochain_rdv: prochain_rdv || null, prochain_rdv_note: prochain_rdv_note || null }).eq('id', id));
   app.querySelectorAll('[data-livrable]').forEach((c) => (c.onchange = async () => {
