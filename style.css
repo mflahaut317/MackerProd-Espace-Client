@@ -485,3 +485,4 @@ a.puce:hover { border-color: var(--line-2); }
 .replie[open] > summary::after { content: "Replier"; }
 .replie[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 .replie > form, .replie > .card { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+.liens-sec { display: inline-flex; gap: 18px; font-size: .88rem; }

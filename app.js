@@ -419,19 +419,20 @@ async function renderProjet(id, onglet) {
   const attendReponse = dernier && dernier.par_admin !== admin;
   const lancementVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
   const onglets = [
-    ['avancement', 'Avancement'],
+    ['avancement', 'Projet'],
     ['messages', 'Messages', messages?.length, attendReponse],
     ['fichiers', 'Fichiers', fichiers?.length, admin && (retours ?? []).some((r) => !r.traite)],
-    ['lancement', 'Fiche de préparation', null, lancementVide && e?.numero >= 3],
-    ...(admin ? [['reglages', 'Réglages']] : []),
+    ...(admin ? [] : [['lancement', 'Fiche de préparation', null, lancementVide && e?.numero >= 3]]),
   ];
-  const actif = onglets.some(([k]) => k === onglet) ? onglet : 'avancement';
+  // Réglages et fiche de préparation : accessibles, mais hors des onglets pour garder l'écran simple.
+  const actif = onglets.some(([k]) => k === onglet) || (admin && ['reglages', 'lancement'].includes(onglet)) ? onglet : 'avancement';
   const nomClient = p.clients?.nom || p.clients?.email || 'Client';
 
   app.innerHTML = `
     <a class="back" href="#/projets">← Projets</a>
     <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ` · <a href="#/client/${p.client_id}">${esc(nomClient)}${p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : ''}</a>` : ''}</p>
-    <h1 class="h-l">${esc(p.titre)}</h1>
+    <div class="hello"><h1 class="h-l">${esc(p.titre)}</h1>
+      ${admin ? `<span class="liens-sec"><a class="btn-txt" href="#/projet/${id}/lancement">Réponses du client${lancementVide ? '' : ' ✓'}</a><a class="btn-txt" href="#/projet/${id}/reglages">Réglages</a></span>` : ''}</div>
 
     ${(fichiers ?? []).some((f) => f.livrable) ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
       <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">${admin ? 'Voir la page client' : 'Découvrir'} →</span></a>` : ''}
@@ -472,7 +473,8 @@ async function renderProjet(id, onglet) {
     </section>
 
     ${admin ? `<section class="panel" data-panel="reglages">
-      <div class="section" style="margin-top:0">
+      <a class="btn-txt" href="#/projet/${id}/avancement">← Retour au projet</a>
+      <div class="section" style="margin-top:18px">
         <p class="label">Étapes et dates · « Passer ici » déplace le projet</p>
         ${parcoursHtml(p, admin)}
       </div>
@@ -546,6 +548,7 @@ async function renderProjet(id, onglet) {
     </section>
 
     <section class="panel" data-panel="lancement">
+      ${admin ? `<p style="margin-bottom:14px"><a class="btn-txt" href="#/projet/${id}/avancement">← Retour au projet</a></p>` : ''}
       <p class="panel-intro">Tout ce qu’il nous faut pour préparer ${svc.cible === 'particulier' ? 'ce grand moment' : 'le tournage'}. Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
       ${formHtml('lancement', svc.fiche, reponses)}
     </section>`;
