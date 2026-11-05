@@ -6,6 +6,40 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const app = document.getElementById('app');
 const logoutBtn = document.getElementById('logout');
 const who = document.getElementById('who');
+const side = document.getElementById('side');
+const nav = document.getElementById('nav');
+const tabbar = document.getElementById('tabbar');
+const topbar = document.getElementById('topbar');
+
+// Menu (à gauche sur ordinateur, onglets en bas sur téléphone) -------------------
+const ICONES = {
+  jour: '<path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/>',
+  projets: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4-2.5z"/>',
+  clients: '<circle cx="9" cy="9" r="3.2"/><path d="M3.5 19c.8-3 3-4.5 5.5-4.5s4.7 1.5 5.5 4.5"/><circle cx="17" cy="8" r="2.4"/><path d="M16 13.6c2.2.2 3.8 1.6 4.5 4"/>',
+  accueil: '<path d="M4 11l8-6 8 6v8a1 1 0 0 1-1 1h-4v-5h-6v5H5a1 1 0 0 1-1-1z"/>',
+  infos: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c1-3.6 3.8-5.5 7-5.5s6 1.9 7 5.5"/>',
+};
+const ico = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>`;
+function menu() {
+  const admin = profil?.role === 'admin';
+  const items = admin
+    ? [['#/', 'jour', 'Aujourd’hui'], ['#/projets', 'projets', 'Projets'], ['#/clients', 'clients', 'Clients']]
+    : [['#/', 'accueil', 'Accueil'], ['#/projets', 'projets', 'Mes projets'], ['#/infos', 'infos', 'Mes infos']];
+  const h = location.hash || '#/';
+  const actif = (href) => href === '#/' ? (h === '#/' || h === '' || h === '#')
+    : h.startsWith(href) || (href === '#/projets' && h.startsWith('#/projet/')) || (href === '#/clients' && h.startsWith('#/client/'));
+  const lien = ([href, k, t]) => `<a href="${href}" data-k="${k}" ${actif(href) ? 'aria-current="page"' : ''}>${ico(k)}<span>${t}</span></a>`;
+  nav.innerHTML = items.map(lien).join('');
+  tabbar.innerHTML = items.map(lien).join('');
+  side.hidden = tabbar.hidden = topbar.hidden = !profil;
+}
+// Pastille rouge sur un élément du menu (nombre de choses à faire).
+function pastille(k, n) {
+  document.querySelectorAll(`[data-k="${k}"]`).forEach((a) => {
+    a.querySelector('.n')?.remove();
+    if (n) a.insertAdjacentHTML('beforeend', `<span class="n">${n}</span>`);
+  });
+}
 
 // Contenu ----------------------------------------------------------------------
 
@@ -67,17 +101,19 @@ async function demarrer(session) {
   logoutBtn.hidden = !session;
   profil = null;
   const partage = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
-  if (!session) return partage ? renderPartage(partage[1]) : renderLogin();
+  if (!session) { menu(); return partage ? renderPartage(partage[1]) : renderLogin(); }
 
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (error) return showError(error);
   profil = data;
-  who.textContent = profil.role === 'admin' ? 'Administration' : profil.email;
-  router();
+  who.textContent = profil.role === 'admin' ? 'Équipe Mackerprod' : profil.email;
+  return router();
 }
 
 function router() {
   window.scrollTo(0, 0);
+  menu();
+  document.body.classList.toggle('sombre', /\/revue\//.test(location.hash));
   const pt = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
   if (pt) return renderPartage(pt[1]);
   const lv = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/livraison$/);
@@ -88,7 +124,11 @@ function router() {
   if (m) return profil.role === 'admin' ? renderProjet(m[1], m[2]) : renderProjetClient(m[1], m[2]);
   const fc = location.hash.match(/^#\/client\/([0-9a-f-]{36})$/);
   if (fc && profil.role === 'admin') return renderFicheClient(fc[1]);
-  if (profil.role === 'admin') return renderAdmin();
+  if (profil.role === 'admin') {
+    if (location.hash === '#/projets') return renderProjetsAdmin();
+    if (location.hash === '#/clients') return renderClientsAdmin();
+    return renderAdmin();
+  }
   if (!profil.client_id) {
     app.innerHTML = `
       <p class="label rule">Bienvenue</p>
@@ -97,6 +137,8 @@ function router() {
       Mackerprod s’en occupe sous 24 h ouvrées.</p>`;
     return;
   }
+  if (location.hash === '#/infos') return renderInfosClient(profil.client_id);
+  if (location.hash === '#/projets') return renderProjetsClient(profil.client_id);
   return renderClient(profil.client_id);
 }
 
@@ -109,13 +151,14 @@ function showError(error) {
 function renderLogin() {
   app.innerHTML = `
     <div class="login">
-      <p class="label rule">Espace client</p>
-      <h1 class="h-l">Suivez votre projet <em>pas à pas</em></h1>
-      <p class="lead">Avancement, échanges, fichiers : tout est réuni ici.</p>
+      <img class="login-logo" src="logo-mackerprod.png" alt="Mackerprod">
+      <p class="label">Espace client</p>
+      <h1 class="h-l">Suivez votre projet, de la signature à la livraison</h1>
+      <p class="lead">Avancement, vidéos à valider, échanges et fichiers : tout est réuni ici.</p>
       <form id="login" class="card">
         <label for="email">Votre adresse e-mail</label>
         <input id="email" type="email" required autocomplete="email" placeholder="vous@exemple.fr">
-        <div class="form-foot"><button class="btn">Recevoir mon lien de connexion</button></div>
+        <div class="form-foot"><button class="btn" style="width:100%">Recevoir mon lien de connexion</button></div>
         <p class="muted small" style="margin-top:16px">Pas de mot de passe : vous recevez un lien par e-mail, il suffit de cliquer dessus.</p>
       </form>
     </div>`;
@@ -141,8 +184,8 @@ async function renderClient(clientId) {
     sb.from('projets').select('*, etapes(*)').eq('client_id', clientId).order('created_at'),
     sb.from('lancements').select('projet_id, reponses'),
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(200),
-    sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin, livrable, created_at'),
-    sb.from('retours').select('fichier_id, type'),
+    sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin, livrable, created_at, url'),
+    sb.from('retours').select('fichier_id, type, par_admin'),
   ]);
   if (error) return showError(error);
   const { data: demandes } = await sb.from('demandes').select('*').order('created_at', { ascending: false });
@@ -155,7 +198,7 @@ async function renderClient(clientId) {
     }
     for (const vs of groupesVersions((fichiers ?? []).filter((x) => x.projet_id === p.id && !x.livrable))) {
       const f = vs.at(-1);
-      if (!(retours ?? []).some((r) => r.fichier_id === f.id)) {
+      if (!(retours ?? []).some((r) => r.fichier_id === f.id && (r.type === 'validation' || !r.par_admin))) {
         todo.push({ href: `#/projet/${p.id}/revue/${f.id}`, titre: f.categorie === 'script' ? `Lire et valider le script « ${f.titre} »` : `Regarder la V${vs.length} de « ${f.titre} »`, sub: `${p.titre} · commentez puis validez` });
       }
     }
@@ -166,7 +209,7 @@ async function renderClient(clientId) {
     if (m?.par_admin) todo.push({ href: `#/projet/${p.id}/messages`, titre: 'Nouveau message de Mackerprod', sub: `${p.titre} · ${dateFr(m.created_at)}` });
     const e = etapeCourante(p.etapes);
     const lanc = (lancements ?? []).find((l) => l.projet_id === p.id);
-    if (e && e.numero >= 3 && !Object.values(lanc?.reponses ?? {}).some(rempli)) {
+    if (e && e.numero >= 3 && e.numero <= 4 && !(serviceDe(p).masquer ?? []).includes(3) && !Object.values(lanc?.reponses ?? {}).some(rempli)) {
       todo.push({ href: `#/projet/${p.id}/lancement`, titre: 'Remplir la fiche de préparation', sub: `${p.titre} · pour que tout soit prêt le jour du tournage` });
     }
   }
@@ -202,53 +245,31 @@ async function renderClient(clientId) {
   const manquants = FICHE_ESSENTIEL.filter((k) => !rempli(fiche[k]));
   if (manquants.length) todo.push({ href: '#fiche', titre: 'Compléter vos coordonnées', sub: `${manquants.length} information${manquants.length > 1 ? 's' : ''} manquante${manquants.length > 1 ? 's' : ''} · une seule fois pour tous vos projets` });
 
+  pastille('accueil', todo.length);
+  const [premier, ...suite] = todo;
+  const prenom = (fiche.nom || '').split(' ')[0];
   app.innerHTML = `
-    <p class="label rule">Espace client</p>
-    <h1 class="h-l">Bonjour <em>${esc((fiche.nom || '').split(' ')[0] || '')}</em></h1>
-    <p class="lead">Bienvenue chez Mackerprod. Ici, vous suivez votre projet de la première rencontre jusqu’aux souvenirs : chaque étape, vos échanges avec nous, vos films et vos photos. Une seule adresse, une seule équipe.</p>
+    <p class="label">Espace client Mackerprod</p>
+    <h1 class="h-l">Bonjour${prenom ? ` ${esc(prenom)}` : ''}</h1>
+    ${premier ? `<a class="urgence" href="${premier.href}"><small>À faire en priorité</small><b>${esc(premier.titre)}</b><small>${esc(premier.sub)}</small><span class="cta">J’y vais →</span></a>`
+      : `<div class="urgence calme"><small>Tout est à jour</small><b>Rien ne vous attend pour le moment</b><small>On vous prévient par e-mail dès qu’il y a du nouveau.</small></div>`}
 
-    <section class="section">
-      <p class="label">À faire de votre côté</p>
-      <div class="todo">${todo.length
-        ? todo.map((t, i) => `<a href="${t.href}"><span class="num">${i + 1}</span>
-            <span><strong>${esc(t.titre)}</strong><span class="sub">${esc(t.sub)}</span></span><span class="go">→</span></a>`).join('')
-        : `<div><span class="num ok">✓</span><span><strong>Tout est à jour</strong><span class="sub">Rien ne vous attend pour le moment. On vous prévient dès qu’il y a du nouveau.</span></span></div>`}
-      </div>
-    </section>
+    ${suite.length ? `<section class="section">
+      <p class="label">Ensuite</p>
+      <div class="liste">${suite.map((t) => `<a class="ligne" href="${t.href}"><span class="dot b"></span><span><b>${esc(t.titre)}</b><small>${esc(t.sub)}</small></span><span></span><span class="btn btn-line btn-sm">Ouvrir</span></a>`).join('')}</div>
+    </section>` : ''}
 
     <section class="section">
       <p class="label">Vos projets</p>
-      <div class="projets">
-        ${(projets ?? []).map((p) => `
-          <a class="projet" href="#/projet/${p.id}">
-            <div class="projet-top"><div><p class="label bronze">${esc(serviceDe(p).label)}</p><h2 class="h-m">${esc(p.titre)}</h2></div><span class="ouvrir">Ouvrir le projet →</span></div>
-            ${parcoursHtml(p)}
-          </a>`).join('') || '<p class="empty">Aucun projet pour l’instant.</p>'}
-      </div>
+      <div class="vignettes">${(projets ?? []).map((p) => vignetteProjet(p, fichiers, { sous: serviceDe(p).label })).join('') || '<p class="empty">Aucun projet pour l’instant.</p>'}</div>
     </section>
 
     <section class="section">
       <p class="label">Votre équipe</p>
-      <p class="panel-intro">Avant de parler caméras, on parle de vous. Voici les personnes qui vous accompagnent.</p>
       ${equipeHtml([...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))].length ? [...new Set((projets ?? []).flatMap((p) => serviceDe(p).equipe))] : Object.keys(EQUIPE))}
     </section>
 
-    ${apresHtml}
-
-    <section class="section" id="fiche">
-      <p class="label">Vos coordonnées</p>
-      <p class="panel-intro">À remplir une seule fois : Mackerprod les réutilise pour tous vos projets.</p>
-      ${formHtml('fiche', CHAMPS_FICHE, fiche, ['notes', 'Remarques'])}
-    </section>
-
-    <section class="section">
-      <p class="label">Vos données</p>
-      <div class="card export">
-        <p>Téléchargez à tout moment l’intégralité de votre dossier : coordonnées, projets, liens vers vos fichiers, échanges et validations. Tout vous appartient.</p>
-        <div class="form-foot"><button class="btn btn-line" id="exporter">Télécharger mon dossier</button></div>
-      </div>
-    </section>`;
-  document.getElementById('exporter').onclick = () => exporterDossier(clientId);
+    ${apresHtml}`;
   app.querySelectorAll('form.demande').forEach((f) => (f.onsubmit = async (ev) => {
     ev.preventDefault();
     const { choix, ...details } = Object.fromEntries(new FormData(f));
@@ -257,10 +278,78 @@ async function renderClient(clientId) {
     if (error) return alert(error.message);
     renderClient(clientId);
   }));
-  bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', clientId), () => renderClient(clientId));
+}
+
+// Mes infos (client) : coordonnées une seule fois, et export complet du dossier.
+async function renderInfosClient(clientId) {
+  const { data: fiche, error } = await sb.from('clients').select('*').eq('id', clientId).single();
+  if (error) return showError(error);
+  app.innerHTML = `
+    <p class="label">Mes infos</p>
+    <h1 class="h-l">Vos coordonnées</h1>
+    <p class="lead">À remplir une seule fois : Mackerprod les réutilise pour tous vos projets.</p>
+    <section class="section">${formHtml('fiche', CHAMPS_FICHE, fiche, ['notes', 'Remarques'])}</section>
+    <section class="section">
+      <p class="label">Vos données</p>
+      <div class="card export">
+        <p>Téléchargez à tout moment l’intégralité de votre dossier : coordonnées, projets, liens vers vos fichiers, échanges et validations. Tout vous appartient.</p>
+        <div class="form-foot"><button class="btn btn-line" id="exporter">Télécharger mon dossier</button></div>
+      </div>
+    </section>`;
+  document.getElementById('exporter').onclick = () => exporterDossier(clientId);
+  bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', clientId), () => renderInfosClient(clientId));
+}
+
+// Mes projets (client) : tous les projets en vignettes.
+async function renderProjetsClient(clientId) {
+  const [{ data: projets, error }, { data: fichiers }] = await Promise.all([
+    sb.from('projets').select('*, etapes(*)').eq('client_id', clientId).order('created_at', { ascending: false }),
+    sb.from('fichiers').select('projet_id, categorie, url, created_at'),
+  ]);
+  if (error) return showError(error);
+  app.innerHTML = `
+    <p class="label">Mes projets</p>
+    <h1 class="h-l">Vos projets avec Mackerprod</h1>
+    <section class="section"><div class="vignettes">${(projets ?? []).map((p) => {
+      const e = etapeCourante(p.etapes);
+      return vignetteProjet(p, fichiers, { sous: serviceDe(p).label, st: e?.statut === 'termine' ? 'Terminé' : serviceDe(p).etapes[e?.numero]?.titre, stCls: e?.statut === 'termine' ? 'ok' : '' });
+    }).join('') || '<p class="empty">Aucun projet pour l’instant.</p>'}</div></section>`;
 }
 
 // Morceaux réutilisés ----------------------------------------------------------
+
+// Vignette d'un projet : image de sa dernière vidéo (YouTube, Vimeo) ou de sa dernière photo,
+// sinon un dégradé propre à la prestation avec les initiales du projet.
+const DEGRADES = {
+  corporate: ['#30343c', '#8b8fa0'], immobilier: ['#3d566c', '#b39470'], frame2: ['#2f3d34', '#9fb18a'],
+  site_web: ['#25313b', '#6d8796'], mariage: ['#5b4636', '#d9b48c'], evenement: ['#4a3a44', '#c7a1a8'], seance_photo: ['#3a3340', '#b49fb8'],
+};
+function imageDe(url) {
+  const l = analyserLien(url ?? '', 'video');
+  if (l.type === 'youtube') return `https://img.youtube.com/vi/${l.id}/hqdefault.jpg`;
+  if (l.type === 'vimeo') return `https://vumbnail.com/${l.id}.jpg`;
+  if (l.type === 'image') return url;
+  return null;
+}
+function progression(p) {
+  const vs = etapesVisibles(p);
+  const e = etapeCourante(p.etapes);
+  if (e?.statut === 'termine' && e.numero === 7) return 100;
+  const i = vs.findIndex((x) => x.numero >= (e?.numero ?? 2));
+  return Math.round((100 * Math.max(0, i)) / Math.max(1, vs.length));
+}
+function vignetteProjet(p, fichiers, { st = '', stCls = '', tc = '', sous = '' } = {}) {
+  const img = (fichiers ?? []).filter((f) => f.projet_id === p.id && f.url && ['video', 'photo'].includes(f.categorie))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map((f) => imageDe(f.url)).find(Boolean);
+  const [c1, c2] = DEGRADES[p.type] ?? DEGRADES.site_web;
+  const mono = (p.titre || '?').split(/\s+/).filter((w) => w.length > 2).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+  return `<a class="vignette" href="#/projet/${p.id}">
+    <span class="th" style="background:linear-gradient(150deg, ${c1}, ${c2})">${img ? `<img src="${esc(img)}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">` : ''}
+      ${img ? '' : `<span class="mono">${esc(mono)}</span>`}${st ? `<span class="st ${stCls}">${esc(st)}</span>` : ''}${tc ? `<span class="tc">${esc(tc)}</span>` : ''}</span>
+    <b>${esc(p.titre)}</b><small>${esc(sous)}</small>
+    <span class="bar"><i style="width:${progression(p)}%"></i></span>
+  </a>`;
+}
 
 function parcoursHtml(p, editable = false) {
   const projetId = p.id, svc = serviceDe(p);
@@ -339,7 +428,7 @@ async function renderProjet(id, onglet) {
   const nomClient = p.clients?.nom || p.clients?.email || 'Client';
 
   app.innerHTML = `
-    <a class="back" href="#/">← ${admin ? 'Tableau de bord' : 'Mes projets'}</a>
+    <a class="back" href="#/projets">← Projets</a>
     <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ` · <a href="#/client/${p.client_id}">${esc(nomClient)}${p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : ''}</a>` : ''}</p>
     <h1 class="h-l">${esc(p.titre)}</h1>
 
@@ -645,10 +734,10 @@ async function renderProjetClient(id, ancre) {
   const dernier = (messages ?? []).at(-1);
 
   app.innerHTML = `
-    <a class="back" href="#/">← Mes projets</a>
+    <a class="back" href="#/projets">← Mes projets</a>
 
     <section class="pj-tete">
-      <p class="label red">${esc(svc.label)}${fini ? '' : ` · Étape ${rang + 1} sur ${visibles.length}`}</p>
+      <p class="label red">${esc(svc.label)}${fini ? '' : ` · Étape ${rang + 1} sur ${visibles.length}<span class="mobile-seul"> · ${esc(svc.etapes[visibles[rang]?.numero]?.titre ?? '')}</span>`}</p>
       <h1 class="h-l">${esc(p.titre)}</h1>
       <div class="pj-etat">
         <div>
@@ -832,106 +921,96 @@ function aVenir(lignes) {
   }).sort((a, b) => a.d.localeCompare(b.d));
 }
 
-async function renderAdmin() {
-  const [{ data: clients, error }, { data: messages }, { data: retours }, { data: demandes }, { data: livrables }] = await Promise.all([
+// Données communes aux écrans de l'équipe : clients, projets, et ce qui attend une action.
+async function chargerAtelier() {
+  const [{ data: clients, error }, { data: messages }, { data: retours }, { data: demandes }, { data: fichiers }] = await Promise.all([
     sb.from('clients').select('*, projets(*, etapes(*))').order('created_at', { ascending: false }),
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(500),
-    sb.from('retours').select('projet_id, fichier_id').eq('traite', false),
+    sb.from('retours').select('projet_id, fichier_id, type, traite, par_admin, created_at'),
     sb.from('demandes').select('*, clients(nom, email), projets(titre)').eq('traitee', false).order('created_at'),
-    sb.from('fichiers').select('projet_id').eq('livrable', true),
+    sb.from('fichiers').select('id, projet_id, titre, categorie, url, livrable, par_admin, created_at'),
   ]);
-  if (error) return showError(error);
-
+  if (error) throw error;
   const lignes = (clients ?? []).flatMap((c) => (c.projets ?? []).map((p) => {
     const m = dernierMessage(messages, p.id);
-    return { c, p, e: etapeCourante(p.etapes), m, aRepondre: m && !m.par_admin,
-      retours: (retours ?? []).filter((r) => r.projet_id === p.id).length,
-      livre: (livrables ?? []).some((f) => f.projet_id === p.id) };
+    const e = etapeCourante(p.etapes);
+    return { c, p, e, m, aRepondre: m && !m.par_admin,
+      retours: (retours ?? []).filter((r) => r.projet_id === p.id && !r.traite && !r.par_admin && r.type === 'commentaire').length,
+      valide: (retours ?? []).some((r) => r.projet_id === p.id && r.type === 'validation' && !(fichiers ?? []).some((f) => f.projet_id === p.id && f.livrable)),
+      livre: (fichiers ?? []).some((f) => f.projet_id === p.id && f.livrable),
+      fini: e?.statut === 'termine' && e.numero === 7 };
   }));
-
-  // Ce qui attend l'équipe, du plus urgent au moins urgent.
+  const nom = (c) => c.nom || c.email;
   const prio = [
-    ...lignes.filter((l) => l.aRepondre).map((l) => ({ tag: 'Message', href: `#/projet/${l.p.id}/messages`,
-      titre: `Répondre à ${l.c.nom || l.c.email}`, sub: `${l.p.titre} · ${dateFr(l.m.created_at)}` })),
-    ...lignes.filter((l) => l.retours).map((l) => ({ tag: 'Retours', href: `#/projet/${l.p.id}/fichiers`,
-      titre: `${l.retours} retour${l.retours > 1 ? 's' : ''} à traiter`, sub: `${l.c.nom || l.c.email} · ${l.p.titre}` })),
-    ...(demandes ?? []).map((x) => ({ tag: DEMANDES[x.type], demande: x.id, href: `#/client/${x.client_id}`,
+    ...lignes.filter((l) => l.retours).map((l) => ({ dot: '', tag: 'Retours', href: `#/projet/${l.p.id}/fichiers`, action: 'Voir',
+      titre: `${nom(l.c)} a laissé ${l.retours} retour${l.retours > 1 ? 's' : ''}`, sub: l.p.titre })),
+    ...lignes.filter((l) => l.aRepondre).map((l) => ({ dot: '', tag: 'Message', href: `#/projet/${l.p.id}/messages`, action: 'Répondre',
+      titre: `${nom(l.c)} attend une réponse`, sub: `${l.p.titre} · ${dateFr(l.m.created_at)}` })),
+    ...lignes.filter((l) => l.valide).map((l) => ({ dot: 'g', tag: 'Validé', href: `#/projet/${l.p.id}/fichiers`, action: 'Livrer',
+      titre: `${nom(l.c)} a validé une version`, sub: `${l.p.titre} · prêt à livrer` })),
+    ...(demandes ?? []).map((x) => ({ dot: 'b', tag: DEMANDES[x.type], demande: x.id, href: `#/client/${x.client_id}`,
       titre: `${x.clients?.nom || x.clients?.email}${x.type === 'parrainage' ? ` recommande ${x.details?.nom || 'un proche'}` : x.type === 'nouveau_projet' ? ' a un nouveau projet' : ' souhaite ' + (x.type === 'album' ? 'un album' : 'des tirages')}`,
       sub: [x.details?.contact, x.details?.message].filter(Boolean).join(' · ') || dateFr(x.created_at) })),
   ];
-  const avenir = aVenir(lignes);
+  return { clients: clients ?? [], lignes, prio, fichiers: fichiers ?? [], avenir: aVenir(lignes) };
+}
+
+// Étiquette d'une vignette côté équipe : ce qui demande une action d'abord.
+function etatVignette(l) {
+  if (l.retours) return { st: `${l.retours} retour${l.retours > 1 ? 's' : ''}`, stCls: 'r' };
+  if (l.aRepondre) return { st: 'À répondre', stCls: 'r' };
+  if (l.valide) return { st: 'Validé', stCls: 'ok' };
+  if (l.fini) return { st: 'Terminé', stCls: 'ok' };
+  if (l.livre) return { st: 'Livré', stCls: 'ok' };
+  return { st: serviceDe(l.p).etapes[l.e?.numero]?.titre ?? '', stCls: '' };
+}
+function vignetteEquipe(l, fichiers) {
+  const date = l.e?.date_prevue && l.e.statut !== 'termine' ? l.e.date_prevue : l.p.prochain_rdv;
+  return vignetteProjet(l.p, fichiers, { ...etatVignette(l), tc: date ? jourCourt(date) : '', sous: `${l.c.nom || l.c.email} · ${serviceDe(l.p).label}` });
+}
+const urgence = (l) => (l.retours || l.aRepondre ? 0 : l.valide ? 1 : l.fini ? 9 : 2);
+
+// Aujourd'hui (équipe) : ce qui attend une action, la semaine, les projets en production.
+async function renderAdmin() {
+  const { lignes, prio, fichiers, avenir } = await chargerAtelier();
+  pastille('jour', prio.length);
   const heure = new Date().getHours();
   const auj = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const enCours = lignes.filter((l) => !l.fini).sort((a, b) => urgence(a) - urgence(b));
+  const semaine = avenir.filter((a) => a.d <= new Date(Date.now() + 7 * 864e5).toLocaleDateString('sv-SE'));
 
   app.innerHTML = `
-    <p class="label rule">L’atelier Mackerprod · ${esc(auj)}</p>
-    <h1 class="h-l">${heure < 18 ? 'Bonjour' : 'Bonsoir'}, <em>l’équipe</em></h1>
-    <p class="lead">${prio.length ? `${prio.length} chose${prio.length > 1 ? 's' : ''} vous attend${prio.length > 1 ? 'ent' : ''}` : 'Rien d’urgent'}, ${lignes.filter((l) => l.e?.numero < 6).length} projet${lignes.filter((l) => l.e?.numero < 6).length > 1 ? 's' : ''} en production et ${avenir.length} rendez-vous dans les 30 jours.</p>
+    <div class="hello">
+      <div><p class="label">${esc(auj.charAt(0).toUpperCase() + auj.slice(1))}</p>
+        <h1 class="h-l">${heure < 18 ? 'Bonjour' : 'Bonsoir'}</h1></div>
+      <a class="btn" href="#/clients">+ Nouveau client</a>
+    </div>
+    <div class="chiffres">
+      <span><b>${prio.length}</b> chose${prio.length > 1 ? 's' : ''} à faire</span>
+      <span><b>${enCours.length}</b> projet${enCours.length > 1 ? 's' : ''} en cours</span>
+      <span><b>${semaine.length}</b> rendez-vous cette semaine</span>
+    </div>
 
-    <div class="admin-haut section">
-      <section>
-        <p class="label ${prio.length ? 'red' : ''}">À faire</p>
-        <div class="todo">${prio.length ? prio.map((t) => `
-          <div class="prio"><a href="${t.href}"><span class="tag">${esc(t.tag)}</span>
-            <span><strong>${esc(t.titre)}</strong><span class="sub">${esc(t.sub)}</span></span></a>
-            ${t.demande ? `<button class="btn btn-line btn-sm" data-traitee="${t.demande}">Traitée</button>` : '<span class="go">→</span>'}</div>`).join('')
-          : '<div><span class="num ok">✓</span><span><strong>Tout est à jour</strong><span class="sub">Aucun message, retour ou demande en attente.</span></span></div>'}
-        </div>
+    <div class="deux">
+      <section class="liste">
+        <div class="liste-titre"><span class="label ${prio.length ? 'red' : ''}">À faire</span></div>
+        ${prio.length ? prio.map((t) => `<div class="ligne"><span class="dot ${t.dot}"></span>
+            <a href="${t.href}" style="text-decoration:none;min-width:0"><b>${esc(t.titre)}</b><small>${esc(t.sub)}</small></a>
+            <span class="badge ${t.dot === 'g' ? 'ok' : t.dot === 'b' ? 'line' : 'red'}">${esc(t.tag)}</span>
+            ${t.demande ? `<button class="btn btn-line btn-sm" data-traitee="${t.demande}">Traitée</button>` : `<a class="btn btn-sm" href="${t.href}">${t.action}</a>`}</div>`).join('')
+          : '<div class="ligne vide"><span class="dot g"></span><span><b>Tout est à jour</b><small>Aucun message, retour ou demande en attente.</small></span></div>'}
       </section>
-      <section>
-        <p class="label">Agenda · 30 jours</p>
-        <div class="agenda">${avenir.length ? avenir.map((a) => `
-          <a href="#/projet/${a.p.id}"><span class="jour"><b>${Number(a.d.slice(8))}</b>${new Date(a.d + 'T12:00:00').toLocaleDateString('fr-FR', { month: 'short' })}</span>
-            <span><strong>${esc(a.quoi)}</strong><span class="sub">${esc(a.c.nom || a.c.email)} · ${esc(a.p.titre)}</span></span></a>`).join('')
-          : '<p class="empty">Aucune date prévue. Fixez les dates dans chaque projet.</p>'}</div>
+      <section class="liste">
+        <div class="liste-titre"><span class="label">À venir</span><span class="muted small">30 jours</span></div>
+        ${avenir.length ? avenir.slice(0, 8).map((a) => `<a class="ligne" href="#/projet/${a.p.id}" style="grid-template-columns:54px minmax(0,1fr)">
+            <span class="jour-l">${esc(jourCourt(a.d))}</span><span><b>${esc(a.quoi)}</b><small>${esc(a.c.nom || a.c.email)} · ${esc(a.p.titre)}</small></span></a>`).join('')
+          : '<div class="ligne vide"><span class="dot n"></span><span><small>Aucune date prévue. Fixez-les dans chaque projet.</small></span></div>'}
       </section>
     </div>
 
     <section class="section">
-      <p class="label">L’atelier</p>
-      ${lignes.length ? `<div class="atelier">${PHASES.map(([titre, nums]) => {
-        const items = lignes.filter((l) => nums.includes(l.e?.numero));
-        return `<div class="colonne"><p class="col-titre">${titre}<span>${items.length}</span></p>
-          ${items.map(({ c, p, e, aRepondre, retours: nr, livre }) => {
-            const date = e?.date_prevue && e.statut !== 'termine' ? e.date_prevue : p.prochain_rdv;
-            return `<a class="carte-projet ${aRepondre || nr ? 'alerte' : ''}" href="#/projet/${p.id}">
-              <span class="label bronze">${esc(serviceDe(p).label)}</span>
-              <strong>${esc(p.titre)}</strong>
-              <span class="qui"><i>${esc(initiales(c))}</i>${esc(c.nom || c.email)}</span>
-              <span class="etat">${e ? `${e.numero}. ${esc(serviceDe(p).etapes[e.numero]?.titre)}` : ''}${date ? ` · ${esc(jourCourt(date))}` : ''}</span>
-              <span class="badges">${aRepondre ? '<span class="badge red">À répondre</span>' : ''}${nr ? `<span class="badge line">${nr} retour${nr > 1 ? 's' : ''}</span>` : ''}${livre ? '<span class="badge ok">Livré</span>' : ''}</span>
-            </a>`;
-          }).join('') || '<p class="vide">—</p>'}
-        </div>`;
-      }).join('')}</div>` : '<p class="empty">Aucun projet pour l’instant. Créez votre premier client ci-dessous.</p>'}
-    </section>
-
-    <section class="section">
-      <p class="label">Clients</p>
-      <div class="clients">${(clients ?? []).map((c) => {
-        const derniers = (messages ?? []).filter((m) => (c.projets ?? []).some((p) => p.id === m.projet_id));
-        return `<a class="carte-client" href="#/client/${c.id}"><i>${esc(initiales(c))}</i>
-          <span><strong>${esc(c.nom || c.email)}</strong><span class="sub">${esc(c.entreprise || c.email)}</span>
-          <span class="sub">${c.projets?.length ?? 0} projet${(c.projets?.length ?? 0) > 1 ? 's' : ''}${derniers[0] ? ` · actif ${dateFr(derniers[0].created_at)}` : ''}</span></span></a>`;
-      }).join('')}</div>
-    </section>
-
-    <section class="section">
-      <p class="label">Ajouter</p>
-      <details class="ajout">
-        <summary class="btn">+ Nouveau client</summary>
-        <form id="nouveau" class="card">
-          <p class="panel-intro">Le client se connecte ensuite avec cet e-mail : son compte est relié automatiquement.</p>
-          <div class="grid">
-            <div><label for="n_email">E-mail du client</label><input id="n_email" name="email" type="email" required></div>
-            <div><label for="n_nom">Nom et prénom</label><input id="n_nom" name="nom"></div>
-            <div><label for="n_ent">Entreprise</label><input id="n_ent" name="entreprise"></div>
-            <div><label for="n_projet">Premier projet</label><input id="n_projet" name="projet" placeholder="Film d’entreprise 2027"></div>
-            <div><label for="n_type">Prestation</label><select id="n_type" name="type">${optionsServices()}</select></div>
-          </div>
-          <div class="form-foot"><button class="btn">Créer le client</button></div>
-        </form>
-      </details>
+      <div class="hello" style="margin-bottom:12px"><span class="label">En production</span><a class="btn-txt" href="#/projets">Tous les projets</a></div>
+      <div class="vignettes">${enCours.slice(0, 8).map((l) => vignetteEquipe(l, fichiers)).join('') || '<p class="empty">Aucun projet en cours.</p>'}</div>
     </section>`;
 
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
@@ -939,6 +1018,57 @@ async function renderAdmin() {
     if (error) return alert(error.message);
     renderAdmin();
   }));
+}
+
+// Projets (équipe) : toutes les vignettes, filtrées par phase.
+const FILTRES = [['tous', 'Tous', () => true], ['avant', 'Avant le tournage', (l) => l.e?.numero <= 3], ['tournage', 'Tournage', (l) => l.e?.numero === 4],
+  ['montage', 'Montage', (l) => l.e?.numero === 5], ['livre', 'Livrés', (l) => l.e?.numero >= 6]];
+let filtreProjets = 'tous';
+async function renderProjetsAdmin() {
+  const { lignes, prio, fichiers } = await chargerAtelier();
+  pastille('jour', prio.length);
+  const tri2 = [...lignes].sort((a, b) => urgence(a) - urgence(b));
+  const dessiner = () => {
+    const f = FILTRES.find((x) => x[0] === filtreProjets) ?? FILTRES[0];
+    app.querySelector('.filtres').innerHTML = FILTRES.map(([k, t, fn]) => `<button type="button" data-f="${k}" aria-pressed="${k === f[0]}">${t}<i>${lignes.filter(fn).length}</i></button>`).join('');
+    app.querySelector('.vignettes').innerHTML = tri2.filter(f[2]).map((l) => vignetteEquipe(l, fichiers)).join('') || '<p class="empty">Aucun projet ici.</p>';
+    app.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { filtreProjets = b.dataset.f; dessiner(); }));
+  };
+  app.innerHTML = `
+    <div class="hello"><div><p class="label">Projets</p><h1 class="h-l">Tous les projets</h1></div>
+      <a class="btn" href="#/clients">+ Nouveau client</a></div>
+    <section class="section"><div class="filtres"></div><div class="vignettes"></div></section>`;
+  dessiner();
+}
+
+// Clients (équipe) : la liste, et l'ajout d'un nouveau client.
+async function renderClientsAdmin() {
+  const { clients, lignes, prio } = await chargerAtelier();
+  pastille('jour', prio.length);
+  app.innerHTML = `
+    <div class="hello"><div><p class="label">Clients</p><h1 class="h-l">${clients.length} client${clients.length > 1 ? 's' : ''}</h1></div></div>
+    <details class="ajout section" ${clients.length ? '' : 'open'}>
+      <summary class="btn">+ Nouveau client</summary>
+      <form id="nouveau" class="card">
+        <p class="panel-intro">Le client se connecte ensuite avec cet e-mail : son compte est relié automatiquement.</p>
+        <div class="grid">
+          <div><label for="n_email">E-mail du client</label><input id="n_email" name="email" type="email" required></div>
+          <div><label for="n_nom">Nom et prénom</label><input id="n_nom" name="nom"></div>
+          <div><label for="n_ent">Entreprise</label><input id="n_ent" name="entreprise"></div>
+          <div><label for="n_projet">Premier projet</label><input id="n_projet" name="projet" placeholder="Film d’entreprise 2027"></div>
+          <div class="full"><label for="n_type">Prestation</label><select id="n_type" name="type">${optionsServices()}</select></div>
+        </div>
+        <div class="form-foot"><button class="btn">Créer le client</button></div>
+      </form>
+    </details>
+    <section class="section liste">${clients.map((c) => {
+      const ls = lignes.filter((l) => l.c.id === c.id);
+      const alerte = ls.some((l) => l.aRepondre || l.retours);
+      return `<a class="ligne cl" href="#/client/${c.id}"><span class="av">${esc(initiales(c))}</span>
+        <span><b>${esc(c.nom || c.email)}</b><small>${esc([c.entreprise, ls.map((l) => l.p.titre).join(', ')].filter(Boolean).join(' · ') || c.email)}</small></span>
+        <span class="badge ${alerte ? 'red' : 'line'}">${alerte ? 'À traiter' : `${ls.length} projet${ls.length > 1 ? 's' : ''}`}</span><span class="muted">→</span></a>`;
+    }).join('') || '<div class="ligne vide"><span class="dot n"></span><span><small>Aucun client pour l’instant.</small></span></div>'}</section>`;
+
   document.getElementById('nouveau').onsubmit = async (ev) => {
     ev.preventDefault();
     const { email, nom, entreprise, projet, type } = Object.fromEntries(new FormData(ev.target));
@@ -983,7 +1113,7 @@ async function renderFicheClient(id) {
   const depuis = new Date(c.created_at || Date.now()).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
   app.innerHTML = `
-    <a class="back" href="#/">← Tableau de bord</a>
+    <a class="back" href="#/clients">← Clients</a>
     <div class="fiche-tete">
       <i class="monogramme">${esc(initiales(c))}</i>
       <div>
