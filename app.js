@@ -1207,9 +1207,11 @@ const lireTemps = (txt) => {
   return p.reduce((acc, n) => acc * 60 + n, 0);
 };
 const chargerScript = (src) => new Promise((ok, ko) => {
-  if (document.querySelector(`script[src="${src}"]`)) return ok();
+  if (document.querySelector(`script[data-ok][src="${src}"]`)) return ok();
   const s = document.createElement('script');
-  s.src = src; s.onload = ok; s.onerror = ko;
+  s.src = src;
+  s.onload = () => { s.dataset.ok = '1'; ok(); };
+  s.onerror = () => { s.remove(); ko(new Error('script')); };
   document.head.appendChild(s);
 });
 
@@ -1252,7 +1254,15 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
   }
   if (lien.type === 'vimeo') {
     zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}?${lien.hash ? `h=${lien.hash}&` : ''}title=0&byline=0&portrait=0&color=941e28${barre ? '&controls=0&keyboard=0' : ''}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
-    await chargerScript('https://player.vimeo.com/api/player.js');
+    // Si le pilote Vimeo ne charge pas (réseau, bloqueur), on garde le lecteur Vimeo avec ses propres boutons.
+    try {
+      await chargerScript('https://player.vimeo.com/api/player.js');
+      if (!window.Vimeo?.Player) throw new Error('Vimeo');
+    } catch {
+      const fr = zone.querySelector('iframe');
+      fr.src = fr.src.replace('&controls=0&keyboard=0', '');
+      return { ...vide, propre: false };
+    }
     const player = new Vimeo.Player(zone.querySelector('iframe'));
     return {
       getTime: () => player.getCurrentTime(), duree: () => player.getDuration(), enPause: () => player.getPaused(),
