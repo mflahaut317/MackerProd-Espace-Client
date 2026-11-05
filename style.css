@@ -496,3 +496,7 @@ a.puce:hover { border-color: var(--line-2); }
 /* Cartes projet de la fiche client : la barre seule, puis l'état en une ligne. */
 .parcours-court .t, .parcours-court .s, .parcours-court .aller { display: none !important; }
 .etat-court { margin-top: 8px; font-size: .88rem; color: var(--text-2); }
+
+/* Bandeau « Voir comme le client » (équipe, lecture seule) */
+.bandeau-vue { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 8px 16px; background: var(--red, #941e28); color: #fff; font-size: .86rem; }
+.bandeau-vue .btn { background: #fff; color: #941e28; border-color: #fff; }

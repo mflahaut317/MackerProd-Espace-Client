@@ -3,6 +3,32 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, AVIS_GOOGLE_URL } from './config.js';
 import { SERVICES, EQUIPE, serviceDe } from './services.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// « Voir comme le client » : l'équipe parcourt l'espace d'un client, en lecture seule.
+// Toute écriture est bloquée ici, avant d'atteindre Supabase.
+let vueClient = null;
+try { vueClient = sessionStorage.getItem('vue-client'); } catch {}
+const APERCU = 'Vous regardez l’espace comme le client : rien n’est enregistré.';
+const bloque = () => {
+  const res = { data: null, error: { message: APERCU } };
+  const q = new Proxy(() => {}, { get: (_, k) => (k === 'then' ? (ok) => ok(res) : () => q) });
+  return q;
+};
+const fromReel = sb.from.bind(sb);
+sb.from = (table) => {
+  const q = fromReel(table);
+  if (vueClient) for (const k of ['insert', 'update', 'upsert', 'delete']) q[k] = bloque;
+  return q;
+};
+const rpcReel = sb.rpc.bind(sb);
+sb.rpc = (nom, args) => (vueClient && nom !== 'livraison_publique' ? bloque() : rpcReel(nom, args));
+const estAdmin = () => profil?.role === 'admin' && !vueClient;
+const clientCourant = () => vueClient || profil?.client_id;
+function changerVue(id, retour) {
+  vueClient = id;
+  try { id ? sessionStorage.setItem('vue-client', id) : sessionStorage.removeItem('vue-client'); } catch {}
+  if (location.hash === retour) router(); else location.hash = retour;
+}
 const app = document.getElementById('app');
 const logoutBtn = document.getElementById('logout');
 const who = document.getElementById('who');
@@ -21,7 +47,7 @@ const ICONES = {
 };
 const ico = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>`;
 function menu() {
-  const admin = profil?.role === 'admin';
+  const admin = estAdmin();
   const items = admin
     ? [['#/', 'jour', 'Aujourd’hui'], ['#/projets', 'projets', 'Projets'], ['#/clients', 'clients', 'Clients']]
     : [['#/', 'accueil', 'Accueil'], ['#/projets', 'projets', 'Mes projets'], ['#/infos', 'infos', 'Mes infos']];
@@ -94,7 +120,7 @@ window.addEventListener('hashchange', () => {
   if (partage) return renderPartage(partage[1]).catch(showError);
   if (profil) Promise.resolve(router()).catch(showError);
 });
-logoutBtn.onclick = () => sb.auth.signOut();
+logoutBtn.onclick = () => { vueClient = null; try { sessionStorage.removeItem('vue-client'); } catch {} sb.auth.signOut(); };
 
 async function demarrer(session) {
   logoutBtn.hidden = !session;
@@ -105,6 +131,7 @@ async function demarrer(session) {
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (error) return showError(error);
   profil = data;
+  if (profil.role !== 'admin') vueClient = null;
   who.textContent = profil.role === 'admin' ? 'Équipe Mackerprod' : profil.email;
   return router();
 }
@@ -113,6 +140,7 @@ function router() {
   window.scrollTo(0, 0);
   menu();
   document.body.classList.add('sombre');
+  bandeauVue();
   const pt = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
   if (pt) return renderPartage(pt[1]);
   const lv = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/livraison$/);
@@ -120,15 +148,15 @@ function router() {
   const r = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/revue\/([0-9a-f-]{36})$/);
   if (r) return renderRevue(r[1], r[2]);
   const m = location.hash.match(/^#\/projet\/([0-9a-f-]{36})(?:\/(\w+))?$/);
-  if (m) return profil.role === 'admin' ? renderProjet(m[1], m[2]) : renderProjetClient(m[1], m[2]);
+  if (m) return estAdmin() ? renderProjet(m[1], m[2]) : renderProjetClient(m[1], m[2]);
   const fc = location.hash.match(/^#\/client\/([0-9a-f-]{36})$/);
-  if (fc && profil.role === 'admin') return renderFicheClient(fc[1]);
-  if (profil.role === 'admin') {
+  if (fc && estAdmin()) return renderFicheClient(fc[1]);
+  if (estAdmin()) {
     if (location.hash === '#/projets') return renderProjetsAdmin();
     if (location.hash === '#/clients') return renderClientsAdmin();
     return renderAdmin();
   }
-  if (!profil.client_id) {
+  if (!clientCourant()) {
     app.innerHTML = `
       <p class="label rule">Bienvenue</p>
       <h1 class="h-l">Votre espace est <em>presque prêt</em></h1>
@@ -136,9 +164,23 @@ function router() {
       Mackerprod s’en occupe sous 24 h ouvrées.</p>`;
     return;
   }
-  if (location.hash === '#/infos') return renderInfosClient(profil.client_id);
-  if (location.hash === '#/projets') return renderProjetsClient(profil.client_id);
-  return renderClient(profil.client_id);
+  if (location.hash === '#/infos') return renderInfosClient(clientCourant());
+  if (location.hash === '#/projets') return renderProjetsClient(clientCourant());
+  return renderClient(clientCourant());
+}
+
+// Bandeau en haut de page tant que l'équipe regarde l'espace d'un client.
+function bandeauVue() {
+  let b = document.getElementById('vue-client');
+  if (!(vueClient && profil?.role === 'admin')) return b?.remove();
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'vue-client';
+    b.className = 'bandeau-vue';
+    b.innerHTML = `<span>Vous voyez l’espace comme le client · lecture seule</span><button type="button" class="btn btn-sm">Quitter</button>`;
+    b.querySelector('button').onclick = () => changerVue(null, `#/client/${vueClient}`);
+    document.body.prepend(b);
+  }
 }
 
 function showError(error) {
@@ -168,7 +210,7 @@ function renderLogin() {
       email, options: { emailRedirectTo: location.origin + location.pathname },
     });
     e.target.innerHTML = error
-      ? `<p class="msg err">Erreur : ${esc(error.message)}</p>`
+      ? `<p class="msg err">${esc(messageErreur(error))}</p>`
       : `<p class="h-m">Vérifiez votre boîte mail</p>
          <p class="lead">Un lien de connexion a été envoyé à <strong>${esc(email)}</strong>.
          Ouvrez-le sur cet appareil. Pensez à regarder dans les indésirables.</p>`;
@@ -274,7 +316,7 @@ async function renderClient(clientId) {
     const { choix, ...details } = Object.fromEntries(new FormData(f));
     const type = choix || f.dataset.type;
     const { error } = await sb.from('demandes').insert({ client_id: clientId, projet_id: livres.at(-1)?.id ?? null, type, details });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderClient(clientId);
   }));
 }
@@ -387,7 +429,7 @@ function bindForm(id, enregistrer, apres) {
     const out = form.querySelector('.msg');
     const { error } = await enregistrer(Object.fromEntries(new FormData(form)));
     out.className = error ? 'msg err' : 'msg';
-    out.textContent = error ? `Erreur : ${error.message}` : 'Enregistré ✓';
+    out.textContent = error ? messageErreur(error) : 'Enregistré ✓';
     if (!error && apres) setTimeout(apres, 900);
   };
 }
@@ -395,7 +437,7 @@ function bindForm(id, enregistrer, apres) {
 // Page projet (client et admin) ------------------------------------------------
 
 async function renderProjet(id, onglet) {
-  const admin = profil.role === 'admin';
+  const admin = estAdmin();
   const [{ data: p, error }, { data: lancement }, { data: fichiers }, { data: messages }] = await Promise.all([
     sb.from('projets').select('*, etapes(*), clients(nom, entreprise, email, telephone)').eq('id', id).single(),
     sb.from('lancements').select('*').eq('projet_id', id).maybeSingle(),
@@ -572,13 +614,13 @@ async function renderProjet(id, onglet) {
     sb.from('projets').update({ prochain_rdv: prochain_rdv || null, prochain_rdv_note: prochain_rdv_note || null }).eq('id', id));
   app.querySelectorAll('[data-livrable]').forEach((c) => (c.onchange = async () => {
     const { error } = await sb.from('fichiers').update({ livrable: c.checked }).eq('id', c.dataset.livrable);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
   }));
   const changerType = document.getElementById('changer-type');
   if (changerType) changerType.onchange = async () => {
     const { error } = await sb.from('projets').update({ type: changerType.value }).eq('id', id);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'avancement');
   };
   if (admin && document.getElementById('exporter')) document.getElementById('exporter').onclick = () => exporterDossier(p.client_id);
@@ -586,7 +628,7 @@ async function renderProjet(id, onglet) {
     app.querySelectorAll('[data-aller]').forEach((b) => (b.onclick = async (ev) => {
       ev.preventDefault();
       const { error } = await sb.rpc('aller_etape', { p: id, n: Number(b.dataset.aller) });
-      if (error) return alert(error.message);
+      if (error) return alert(messageErreur(error));
       renderProjet(id, 'avancement');
     }));
   }
@@ -599,13 +641,13 @@ async function renderProjet(id, onglet) {
     reponses._guide = [...coches].sort((a, b) => a - b);
     document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
     const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
-    if (error) alert(error.message);
+    if (error) alert(messageErreur(error));
   }));
 
   app.querySelectorAll('.date-etape').forEach((d) => (d.onchange = async () => {
     const { error } = await sb.from('etapes').update({ date_prevue: d.value || null })
       .eq('projet_id', d.dataset.projet).eq('numero', Number(d.dataset.numero));
-    if (error) alert(error.message);
+    if (error) alert(messageErreur(error));
   }));
 
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
@@ -613,7 +655,7 @@ async function renderProjet(id, onglet) {
     const contenu = ev.target.contenu.value.trim();
     if (!contenu) return;
     const { error } = await sb.from('messages').insert({ projet_id: id, contenu });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'messages');
   };
 
@@ -622,7 +664,7 @@ async function renderProjet(id, onglet) {
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
     const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
   };
   const formScript = document.getElementById('nouveau-script');
@@ -630,14 +672,14 @@ async function renderProjet(id, onglet) {
     ev.preventDefault();
     const { titre, texte } = Object.fromEntries(new FormData(formScript));
     const { data: nv, error } = await sb.from('fichiers').insert({ projet_id: id, titre: titre.trim(), texte, categorie: 'script' }).select('id').single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     location.hash = `#/projet/${id}/revue/${nv.id}`;
   };
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
     if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjet(id, 'fichiers');
   }));
 }
@@ -868,14 +910,14 @@ async function renderProjetClient(id, ancre) {
     reponses._guide = [...coches].sort((a, b) => a - b);
     document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
     const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
-    if (error) alert(error.message);
+    if (error) alert(messageErreur(error));
   }));
   document.getElementById('nouveau-message').onsubmit = async (ev) => {
     ev.preventDefault();
     const contenu = ev.target.contenu.value.trim();
     if (!contenu) return;
     const { error } = await sb.from('messages').insert({ projet_id: id, contenu });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjetClient(id, 'messages');
   };
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
@@ -883,13 +925,13 @@ async function renderProjetClient(id, ancre) {
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
     const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjetClient(id, 'fichiers');
   };
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
     if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderProjetClient(id, 'fichiers');
   }));
 }
@@ -1009,7 +1051,7 @@ async function renderAdmin() {
 
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
     const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderAdmin();
   }));
 }
@@ -1067,7 +1109,7 @@ async function renderClientsAdmin() {
     ev.preventDefault();
     const { email, nom, entreprise, projet, type } = Object.fromEntries(new FormData(ev.target));
     const { data: c, error } = await sb.from('clients').insert({ email, nom, entreprise }).select().single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     if (projet) await sb.from('projets').insert({ client_id: c.id, titre: projet, type });
     location.hash = `#/client/${c.id}`;
   };
@@ -1117,6 +1159,7 @@ async function renderFicheClient(id) {
           <a class="btn btn-sm" href="mailto:${esc(c.email)}">Écrire un e-mail</a>
           ${c.telephone ? `<a class="btn btn-line btn-sm" href="tel:${esc(c.telephone.replace(/\s/g, ''))}">Appeler · ${esc(c.telephone)}</a>` : ''}
           <button class="btn btn-line btn-sm" id="exporter">Exporter le dossier</button>
+          <button class="btn btn-line btn-sm" id="voir-client">Voir comme le client</button>
         </div>
       </div>
     </div>
@@ -1178,17 +1221,18 @@ async function renderFicheClient(id) {
     </div>`;
 
   document.getElementById('exporter').onclick = () => exporterDossier(id);
+  document.getElementById('voir-client').onclick = () => changerVue(id, '#/');
   bindForm('note-interne', ({ texte }) => sb.from('notes_internes').upsert({ client_id: id, texte }));
   bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', id));
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
     const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderFicheClient(id);
   }));
   document.getElementById('ajout-projet').onsubmit = async (ev) => {
     ev.preventDefault();
     const { data: p, error } = await sb.from('projets').insert({ client_id: id, ...Object.fromEntries(new FormData(ev.target)) }).select().single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     location.hash = `#/projet/${p.id}`;
   };
 }
@@ -1214,6 +1258,19 @@ const chargerScript = (src) => new Promise((ok, ko) => {
   s.onerror = () => { s.remove(); ko(new Error('script')); };
   document.head.appendChild(s);
 });
+
+// Traduit les erreurs Supabase les plus courantes en phrase claire.
+function messageErreur(error) {
+  const m = error?.message ?? '';
+  if (/clients_email_key/.test(m)) return 'Un client existe déjà avec cet e-mail. Ouvrez-le dans la liste des clients.';
+  if (error?.code === '23505' || /duplicate key/.test(m)) return 'Cet élément existe déjà.';
+  if (error?.code === '42501' || /row-level security|permission denied/i.test(m)) return 'Vous n’avez pas l’autorisation de faire cette action.';
+  const attente = m.match(/request this after (\d+) seconds?/i);
+  if (attente) return `Un lien vient déjà d’être envoyé. Patientez ${attente[1]} secondes avant d’en redemander un.`;
+  if (/rate limit/i.test(m)) return 'Trop de demandes d’affilée. Patientez quelques minutes avant de réessayer.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Connexion impossible. Vérifiez votre réseau et réessayez.';
+  return m || 'Une erreur est survenue.';
+}
 
 // Reconnaît le type de lien pour choisir le bon lecteur.
 function analyserLien(url, categorie) {
@@ -1300,7 +1357,7 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
 // Salle de projection : une version d'une vidéo, d'une maquette ou d'un script.
 // Vidéo : chaque retour est accroché à un instant. Maquette : à un endroit. Script : à un passage (pos_y = n° du paragraphe).
 async function renderRevue(projetId, fichierId) {
-  const admin = profil.role === 'admin';
+  const admin = estAdmin();
   const [{ data: f, error }, { data: retours }, { data: p }] = await Promise.all([
     sb.from('fichiers').select('*').eq('id', fichierId).single(),
     sb.from('retours').select('*').eq('fichier_id', fichierId).order('created_at'),
@@ -1540,7 +1597,7 @@ async function renderRevue(projetId, fichierId) {
     if (pos) { ligne.pos_x = pos.x; ligne.pos_y = pos.y; }
     if (estScript && par != null && par <= 100) ligne.pos_y = par;
     const { error } = await sb.from('retours').insert(ligne);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
   };
 
@@ -1555,14 +1612,14 @@ async function renderRevue(projetId, fichierId) {
 
   app.querySelectorAll('[data-traite]').forEach((c) => (c.onchange = async () => {
     const { error } = await sb.from('retours').update({ traite: c.checked }).eq('id', c.dataset.traite);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     c.closest('li').classList.toggle('fait', c.checked);
   }));
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
     if (!confirm('Retirer ce commentaire ?')) return;
     const { error } = await sb.from('retours').delete().eq('id', b.dataset.suppr);
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
   }));
 
@@ -1570,7 +1627,7 @@ async function renderRevue(projetId, fichierId) {
   if (valider) valider.onclick = async () => {
     if (!confirm(`Valider la V${vNum} ? Mackerprod sera prévenu.`)) return;
     const { error } = await sb.from('retours').insert({ fichier_id: fichierId, projet_id: projetId, type: 'validation' });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderRevue(projetId, fichierId);
   };
 
@@ -1582,7 +1639,7 @@ async function renderRevue(projetId, fichierId) {
       projet_id: projetId, titre: f.titre, categorie: f.categorie,
       url: nettoyerLien(d.url) || null, texte: d.texte || null, note_version: d.note_version?.trim() || null,
     }).select('id').single();
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     location.hash = `#/projet/${projetId}/revue/${nv.id}`;
   };
 }
@@ -1595,7 +1652,7 @@ async function exporterDossier(clientId) {
     sb.from('clients').select('*').eq('id', clientId).single(),
     sb.from('projets').select('*, etapes(*), lancements(*), fichiers(*), messages(*), retours(*)').eq('client_id', clientId).order('created_at'),
   ]);
-  if (error) return alert(error.message);
+  if (error) return alert(messageErreur(error));
   const ligne = (l, v) => rempli(v) ? `<tr><th>${esc(l)}</th><td>${esc(v).replace(/\n/g, '<br>')}</td></tr>` : '';
   const date = (d) => new Date(d).toLocaleString('fr-FR', { dateStyle: 'medium', timeStyle: 'short' });
   const html = `<!doctype html><html lang="fr"><head><meta charset="utf-8">
@@ -1666,7 +1723,7 @@ async function monterVideos(d) {
 }
 
 async function renderLivraison(id) {
-  const admin = profil.role === 'admin';
+  const admin = estAdmin();
   const [{ data: p, error }, { data: fichiers }] = await Promise.all([
     sb.from('projets').select('id, titre, type, mot_livraison, partage_token, partage_actif').eq('id', id).single(),
     sb.from('fichiers').select('titre, url, categorie').eq('projet_id', id).eq('livrable', true).order('created_at'),
@@ -1698,7 +1755,7 @@ async function renderLivraison(id) {
   monterVideos(d);
   const basculer = async (actif) => {
     const { error } = await sb.rpc('partager_livraison', { p: id, actif });
-    if (error) return alert(error.message);
+    if (error) return alert(messageErreur(error));
     renderLivraison(id);
   };
   document.getElementById('activer')?.addEventListener('click', () => basculer(true));
