@@ -1073,6 +1073,8 @@ async function renderClientsAdmin() {
 }
 
 // Fiche client (admin) : tout sur une personne, en une page ------------------------
+const estFini = (p) => (p.etapes ?? []).some((e) => e.numero === 7 && e.statut === 'termine');
+
 async function renderFicheClient(id) {
   const [{ data: c, error }, { data: note }, { data: demandes }] = await Promise.all([
     sb.from('clients').select('*, projets(*, etapes(*))').eq('id', id).single(),
@@ -1126,13 +1128,14 @@ async function renderFicheClient(id) {
     <div class="fiche-grille">
       <div>
         <section class="section">
-          <p class="label">Projets</p>
-          <div class="projets">${projets.map((p) => `
+          <p class="label">Projets en cours</p>
+          <div class="projets">${projets.filter((p) => !estFini(p)).map((p) => `
             <a class="projet" href="#/projet/${p.id}">
               <div class="projet-top"><div><p class="label bronze">${esc(serviceDe(p).label)}</p><h2 class="h-m">${esc(p.titre)}</h2></div><span class="ouvrir">Ouvrir →</span></div>
               ${parcoursHtml(p)}
-            </a>`).join('') || '<p class="empty">Aucun projet.</p>'}
+            </a>`).join('') || '<p class="empty">Aucun projet en cours.</p>'}
           </div>
+          ${projets.some(estFini) ? `<p class="muted small" style="margin-top:12px">Terminés : ${projets.filter(estFini).map((p) => `<a href="#/projet/${p.id}">${esc(p.titre)}</a>`).join(' · ')}</p>` : ''}
           <details class="ajout">
             <summary class="btn btn-line btn-sm">+ Nouveau projet</summary>
             <form id="ajout-projet" class="card grid">
