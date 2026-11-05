@@ -414,17 +414,61 @@ function progression(p) {
   const i = vs.findIndex((x) => x.numero >= (e?.numero ?? 2));
   return Math.round((100 * Math.max(0, i)) / Math.max(1, vs.length));
 }
-function vignetteProjet(p, fichiers, { st = '', stCls = '', tc = '', sous = '' } = {}) {
+// Suppression d'un projet (équipe) : fenêtre « Valider / Annuler », depuis les Réglages ou le menu ⋮ d'une vignette.
+async function supprimerProjet(p, apres) {
+  const { data: fs } = await sb.from('fichiers').select('url').eq('projet_id', p.id);
+  const videos = [...new Set((fs ?? []).map((x) => x.url).filter((u) => u && /vimeo\.com\/(?:video\/)?\d+/.test(u)))];
+  const dlg = document.createElement('dialog');
+  dlg.className = 'confirmer';
+  dlg.innerHTML = `<form method="dialog">
+    <p class="label red">Attention</p>
+    <h2 class="h-m">Vous êtes sur le point de supprimer le projet « ${esc(p.titre)} »</h2>
+    <p class="muted">Étapes, messages, fichiers et retours seront effacés. Le client ne le verra plus. Impossible de revenir en arrière.</p>
+    ${videos.length ? `<label class="coche"><input type="checkbox" name="vimeo"> Supprimer aussi ${videos.length > 1 ? `les ${videos.length} vidéos` : 'la vidéo'} sur Vimeo</label>` : ''}
+    <div class="form-foot"><button class="btn btn-line" value="annuler" autofocus>Annuler</button><button class="btn danger-plein" value="valider">Valider</button></div>
+  </form>`;
+  document.body.append(dlg);
+  dlg.showModal();
+  dlg.onclick = (ev) => { if (ev.target === dlg) dlg.close('annuler'); };
+  await new Promise((r) => dlg.addEventListener('close', r, { once: true }));
+  const ok = dlg.returnValue === 'valider', aussiVimeo = !!dlg.querySelector('[name="vimeo"]')?.checked;
+  dlg.remove();
+  if (!ok) return;
+  const { error } = await sb.from('projets').delete().eq('id', p.id);
+  if (error) return alert(messageErreur(error));
+  if (aussiVimeo) for (const u of videos) await sb.functions.invoke('vimeo-upload', { body: { action: 'supprimer', url: u } });
+  apres?.();
+}
+// Menu ⋮ des vignettes (équipe)
+document.addEventListener('click', (ev) => {
+  const ouvert = document.querySelector('.v-menu[open]');
+  const bouton = ev.target.closest('[data-v-menu]');
+  const suppr = ev.target.closest('[data-v-suppr]');
+  if (ouvert && !ev.target.closest('.v-menu')) ouvert.removeAttribute('open');
+  if (bouton) { ev.preventDefault(); const m = bouton.closest('.v-menu'); const etait = m.hasAttribute('open');
+    document.querySelectorAll('.v-menu[open]').forEach((x) => x.removeAttribute('open')); if (!etait) m.setAttribute('open', ''); }
+  if (suppr) {
+    ev.preventDefault();
+    suppr.closest('.v-menu').removeAttribute('open');
+    supprimerProjet({ id: suppr.dataset.vSuppr, titre: suppr.dataset.titre }, () => router());
+  }
+});
+function vignetteProjet(p, fichiers, { st = '', stCls = '', tc = '', sous = '', menu = false } = {}) {
   const img = (fichiers ?? []).filter((f) => f.projet_id === p.id && f.url && ['video', 'photo'].includes(f.categorie))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map((f) => imageDe(f.url)).find(Boolean);
   const [c1, c2] = DEGRADES[p.type] ?? DEGRADES.site_web;
   const mono = (p.titre || '?').split(/\s+/).filter((w) => w.length > 2).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-  return `<a class="vignette" href="#/projet/${p.id}">
+  const html = `<a class="vignette" href="#/projet/${p.id}">
     <span class="th" style="background:linear-gradient(150deg, ${c1}, ${c2})">${img ? `<img src="${esc(img)}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">` : ''}
       ${img ? '' : `<span class="mono">${esc(mono)}</span>`}${st ? `<span class="st ${stCls}">${esc(st)}</span>` : ''}${tc ? `<span class="tc">${esc(tc)}</span>` : ''}</span>
     <b>${esc(p.titre)}</b><small>${esc(sous)}</small>
     <span class="bar"><i style="width:${progression(p)}%"></i></span>
   </a>`;
+  if (!menu) return html;
+  return `<div class="vignette-w">${html}
+    <div class="v-menu"><button type="button" class="v-pts" data-v-menu aria-label="Options du projet">⋮</button>
+      <div class="v-liste" role="menu"><a role="menuitem" href="#/projet/${p.id}/reglages">Réglages</a>
+        <button type="button" role="menuitem" class="v-danger" data-v-suppr="${p.id}" data-titre="${esc(p.titre)}">Supprimer le projet</button></div></div></div>`;
 }
 
 function parcoursHtml(p, editable = false) {
@@ -727,17 +771,7 @@ async function renderProjet(id, onglet) {
   };
 
   const btnSuppr = document.getElementById('supprimer-projet');
-  if (btnSuppr) btnSuppr.onclick = async () => {
-    const saisie = prompt(`Supprimer définitivement « ${p.titre} » et tout son contenu ?\nTapez SUPPRIMER pour confirmer.`);
-    if (saisie?.trim().toUpperCase() !== 'SUPPRIMER') return;
-    // Vidéos envoyées sur Vimeo pour ce projet : proposer de les supprimer aussi.
-    const videos = [...new Set((fichiers ?? []).map((x) => x.url).filter((u) => u && /vimeo\.com\/(?:video\/)?\d+/.test(u)))];
-    const aussiVimeo = videos.length && confirm(`Supprimer aussi ${videos.length > 1 ? `les ${videos.length} vidéos` : 'la vidéo'} de ce projet sur Vimeo ?\nOK : supprimer chez Vimeo · Annuler : les garder sur Vimeo`);
-    const { error } = await sb.from('projets').delete().eq('id', id);
-    if (error) return alert(messageErreur(error));
-    if (aussiVimeo) for (const u of videos) await sb.functions.invoke('vimeo-upload', { body: { action: 'supprimer', url: u } });
-    location.hash = `#/client/${p.client_id}`;
-  };
+  if (btnSuppr) btnSuppr.onclick = () => supprimerProjet(p, () => (location.hash = `#/client/${p.client_id}`));
   zoneVimeo(document.getElementById('f_url'), () => document.getElementById('f_titre').value.trim(), id);
   // La zone de dépôt Vimeo ne sert que pour une vidéo.
   const typeFichier = document.getElementById('f_cat');
@@ -1119,7 +1153,7 @@ function etatVignette(l) {
 }
 function vignetteEquipe(l, fichiers) {
   const date = l.e?.date_prevue && l.e.statut !== 'termine' ? l.e.date_prevue : l.p.prochain_rdv;
-  return vignetteProjet(l.p, fichiers, { ...etatVignette(l), tc: date ? jourCourt(date) : '', sous: `${l.c.nom || l.c.email} · ${serviceDe(l.p).label}` });
+  return vignetteProjet(l.p, fichiers, { ...etatVignette(l), tc: date ? jourCourt(date) : '', sous: `${l.c.nom || l.c.email} · ${serviceDe(l.p).label}`, menu: true });
 }
 const urgence = (l) => (l.retours || l.aRepondre ? 0 : l.valide ? 1 : l.fini ? 9 : 2);
 
