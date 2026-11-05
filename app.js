@@ -506,7 +506,7 @@ async function renderProjet(id, onglet) {
       ${!admin && p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<div class="rdv"><p class="label bronze">Prochain rendez-vous</p>
         <p class="h-m">${esc(p.prochain_rdv_note || 'On se retrouve')} <em>${esc(jourFr(p.prochain_rdv))}</em></p></div>` : ''}
       ${admin ? `<div class="actions-rapides">
-        <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="ajout">+ Déposer une version</a>
+        <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="ajout">+ Ajouter une vidéo</a>
         <a class="btn btn-line" href="#/projet/${id}/messages">Écrire au client</a>
         <a class="btn-txt" href="#/client/${p.client_id}" data-libre>Fiche de ${esc(nomClient)}</a>
       </div>
@@ -567,12 +567,12 @@ async function renderProjet(id, onglet) {
         </li>`).join('') || '<li><span class="empty">Aucun fichier pour l’instant.</span></li>'}
       </ul>
       <details class="ajout" ${fichiers?.length ? '' : 'open'}>
-        <summary class="btn btn-line">+ Ajouter un lien</summary>
+        <summary class="btn btn-line">+ Ajouter une vidéo</summary>
         <form id="nouveau-fichier" class="card grid">
-          <div><label for="f_titre">Nom du fichier</label><input id="f_titre" name="titre" required placeholder="Photos de l’équipe"></div>
+          <div><label for="f_titre">Nom de la vidéo</label><input id="f_titre" name="titre" required placeholder="Visite de la maison"></div>
           <div><label for="f_cat">Type</label><select id="f_cat" name="categorie">
             ${Object.entries(CATEGORIES).filter(([v]) => v !== 'script').map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
-          <div class="full"><label for="f_url">Lien<span class="hint">Vidéo : Vimeo, YouTube non répertorié ou MP4. Photos : lien de la galerie Pic-Time. Même nom qu’une vidéo existante = nouvelle version (V2, V3…).</span></label>
+          <div class="full"><label for="f_url">Vidéo<span class="hint">Glissez le fichier, ou collez un lien Vimeo / YouTube. Même nom qu’une vidéo existante = nouvelle version (V2, V3…). Pour des photos : Type « Photo » et lien de la galerie Pic-Time.</span></label>
             <input id="f_url" name="url" required placeholder="https://vimeo.com/…, code d’intégration Vimeo ou https://….pic-time.com/…"></div>
           <div class="full form-foot"><button class="btn">Ajouter</button></div>
         </form>
@@ -660,6 +660,13 @@ async function renderProjet(id, onglet) {
   };
 
   zoneVimeo(document.getElementById('f_url'), () => document.getElementById('f_titre').value.trim(), id);
+  // La zone de dépôt Vimeo ne sert que pour une vidéo.
+  const typeFichier = document.getElementById('f_cat');
+  typeFichier.onchange = () => {
+    const video = typeFichier.value === 'video';
+    document.querySelector('#nouveau-fichier .depot-vimeo').hidden = !video;
+    document.querySelector('label[for="f_url"]').firstChild.textContent = video ? 'Vidéo' : 'Lien';
+  };
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
     ev.preventDefault();
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
