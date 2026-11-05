@@ -48,6 +48,7 @@ export const SERVICES = {
 
   immobilier: {
     label: 'Immobilier & drone', cible: 'pro',
+    masquer: [3], // pas de script ni de questionnaire : on passe de la signature au tournage
     livraison: 'Votre bien, en images',
     equipe: ['mickael', 'maxence', 'delphine'],
     guide: [
@@ -63,7 +64,7 @@ export const SERVICES = {
       2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
       3: e('Préparation du bien', 'Infos d’accès, créneau, autorisation de vol drone si besoin.', 'Remplir la fiche du bien.', 'lancement'),
       4: e('Tournage & photos', 'Visite filmée, drone, FPV et photos HDR sur place.', 'Rendre le bien rangé, lumineux et accessible.'),
-      5: e('Montage & retouche', 'Montage rythmé et retouche des photos. Vous commentez la version.', 'Regarder la version et laisser vos retours.', 'fichiers'),
+      5: e('Montage & retouche', 'Montage rythmé et retouche des photos. Vous regardez la version et pointez ce qui ne vous plaît pas, à la seconde près.', 'Regarder la version et laisser vos retours.', 'fichiers'),
       6: e('Livraison', 'Vidéo, formats courts pour les annonces et photos HD.', 'Télécharger vos fichiers.', 'fichiers'),
       7: e('Suivi', 'Prochain bien, nouveaux formats.', 'Nous écrire pour le prochain bien.', 'messages'),
     },
@@ -164,7 +165,7 @@ export const SERVICES = {
       2: e('Date réservée', 'Contrat et acompte : votre date est bloquée.', 'Signer le contrat et régler l’acompte.'),
       3: e('Préparation', 'Rendez-vous de préparation, déroulé de la journée et lieux.', 'Remplir la fiche de votre mariage.', 'lancement'),
       4: e('Le jour J', 'Deux vidéastes et une photographe à vos côtés, discrets mais toujours là.', 'Profiter, on s’occupe du reste.'),
-      5: e('Montage & tri', 'Montage du film et du teaser, tri et retouche des photos.', 'Patience : on vous prévient dès qu’un aperçu est prêt.'),
+      5: e('Montage & tri', 'Montage du film et du teaser, tri et retouche des photos. Vous les découvrez en avant-première et vous nous dites ce que vous en pensez.', 'Regarder les aperçus et laisser vos retours.', 'fichiers'),
       6: e('Livraison', 'Teaser, film complet et galerie photo.', 'Regarder, partager et télécharger vos souvenirs.', 'fichiers'),
       7: e('Souvenirs', 'Albums, tirages, et toujours là pour vos prochains moments.', 'Nous écrire pour un album ou un tirage.', 'messages'),
     },

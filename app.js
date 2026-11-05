@@ -17,8 +17,8 @@ const CHAMPS_FICHE = [
   ['registrar', 'Domaine enregistré chez', 'OVH, Gandi, IONOS…'], ['reseaux_sociaux', 'Réseaux sociaux', 'Liens Instagram, Facebook…'],
 ];
 const FICHE_ESSENTIEL = ['nom', 'telephone', 'adresse'];
-const REVUE = ['video', 'maquette'];
-const CATEGORIES = { video: 'Vidéo', photo: 'Photo', document: 'Document', maquette: 'Maquette', autre: 'Autre' };
+const REVUE = ['video', 'maquette', 'script'];
+const CATEGORIES = { video: 'Vidéo', photo: 'Photo', document: 'Document', maquette: 'Maquette', script: 'Script', autre: 'Autre' };
 
 // Outils -----------------------------------------------------------------------
 
@@ -85,7 +85,7 @@ function router() {
   const r = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/revue\/([0-9a-f-]{36})$/);
   if (r) return renderRevue(r[1], r[2]);
   const m = location.hash.match(/^#\/projet\/([0-9a-f-]{36})(?:\/(\w+))?$/);
-  if (m) return renderProjet(m[1], m[2]);
+  if (m) return profil.role === 'admin' ? renderProjet(m[1], m[2]) : renderProjetClient(m[1], m[2]);
   const fc = location.hash.match(/^#\/client\/([0-9a-f-]{36})$/);
   if (fc && profil.role === 'admin') return renderFicheClient(fc[1]);
   if (profil.role === 'admin') return renderAdmin();
@@ -141,7 +141,7 @@ async function renderClient(clientId) {
     sb.from('projets').select('*, etapes(*)').eq('client_id', clientId).order('created_at'),
     sb.from('lancements').select('projet_id, reponses'),
     sb.from('messages').select('projet_id, par_admin, created_at').order('created_at', { ascending: false }).limit(200),
-    sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin, livrable'),
+    sb.from('fichiers').select('id, projet_id, titre, categorie, par_admin, livrable, created_at'),
     sb.from('retours').select('fichier_id, type'),
   ]);
   if (error) return showError(error);
@@ -153,9 +153,10 @@ async function renderClient(clientId) {
     if ((fichiers ?? []).some((x) => x.projet_id === p.id && x.livrable)) {
       todo.unshift({ href: `#/projet/${p.id}/livraison`, titre: serviceDe(p).livraison, sub: `${p.titre} · découvrez votre livraison` });
     }
-    for (const f of (fichiers ?? []).filter((x) => x.projet_id === p.id && x.par_admin && REVUE.includes(x.categorie) && !x.livrable)) {
-      if (!(retours ?? []).some((r) => r.fichier_id === f.id && r.type === 'validation')) {
-        todo.push({ href: `#/projet/${p.id}/revue/${f.id}`, titre: `Donner votre avis sur « ${f.titre} »`, sub: `${p.titre} · commentez puis validez` });
+    for (const vs of groupesVersions((fichiers ?? []).filter((x) => x.projet_id === p.id && !x.livrable))) {
+      const f = vs.at(-1);
+      if (!(retours ?? []).some((r) => r.fichier_id === f.id)) {
+        todo.push({ href: `#/projet/${p.id}/revue/${f.id}`, titre: f.categorie === 'script' ? `Lire et valider le script « ${f.titre} »` : `Regarder la V${vs.length} de « ${f.titre} »`, sub: `${p.titre} · commentez puis validez` });
       }
     }
     if (p.prochain_rdv && p.prochain_rdv >= aujourdhui()) {
@@ -263,9 +264,10 @@ async function renderClient(clientId) {
 
 function parcoursHtml(p, editable = false) {
   const projetId = p.id, svc = serviceDe(p);
-  return `<ol class="parcours">${tri(p.etapes).map((e) => `
+  const etapes = editable ? tri(p.etapes) : etapesVisibles(p);
+  return `<ol class="parcours" style="--n:${etapes.length}">${etapes.map((e, i) => `
     <li class="${e.statut}">
-      <span class="n">${e.numero}</span>
+      <span class="n">${editable ? e.numero : i + 1}</span>
       <span class="t">${esc(svc.etapes[e.numero]?.titre)}</span>
       ${editable
         ? (e.statut === 'en_cours' ? '<span class="s">En cours</span>'
@@ -359,9 +361,11 @@ async function renderProjet(id, onglet) {
           ${e?.date_prevue ? `<p class="quand">Prévu le ${esc(jourFr(e.date_prevue))}</p>` : ''}
           ${admin ? (() => {
             const fini = e?.statut === 'termine';
-            const suivante = fini ? null : e?.numero < 7 ? svc.etapes[e.numero + 1]?.titre : 'Projet terminé';
+            let n = (e?.numero ?? 0) + 1;
+            while ((svc.masquer ?? []).includes(n)) n++;
+            const suivante = fini ? null : n <= 7 ? svc.etapes[n]?.titre : 'Projet terminé';
             return fini ? '<p class="quand">Toutes les étapes sont terminées.</p>' : `<div class="form-foot avancer">
-              <button class="btn" data-aller="${e.numero + 1}">${e.numero < 7 ? `Étape suivante : ${esc(suivante)} →` : 'Terminer le projet ✓'}</button>
+              <button class="btn" data-aller="${n}">${n <= 7 ? `Étape suivante : ${esc(suivante)} →` : 'Terminer le projet ✓'}</button>
               <span class="muted small">Le client est prévenu par e-mail.</span></div>`;
           })() : ''}
           ${admin ? '' : `<p class="attendu">De votre côté : ${esc(info.attendu)}${info.onglet ? ` <a href="#/projet/${id}/${info.onglet}">C’est ici →</a>` : ''}</p>`}
@@ -425,7 +429,7 @@ async function renderProjet(id, onglet) {
       <p class="panel-intro">Vos fichiers restent où vous les avez mis (Google Drive, WeTransfer, Vimeo…). Ici, on garde seulement les liens pour tout retrouver. Les vidéos et maquettes se commentent directement : à la seconde près pour une vidéo, à l’endroit précis pour une maquette.</p>
       <ul class="fichiers">${(fichiers ?? []).map((f) => `
         <li><span class="tag">${CATEGORIES[f.categorie]}</span>
-          <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.titre)}</a>
+          ${f.categorie === 'script' ? `<a href="#/projet/${id}/revue/${f.id}">${esc(f.titre)}</a>` : `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.titre)}</a>`}
           <span class="meta">${f.par_admin ? 'Mackerprod' : esc(nomClient)} · ${dateFr(f.created_at)}</span>
           ${REVUE.includes(f.categorie) ? (() => { const ri = revueInfo(f.id); return `
             ${ri.valide ? '<span class="badge ok">Validé</span>' : ''}
@@ -440,12 +444,21 @@ async function renderProjet(id, onglet) {
         <form id="nouveau-fichier" class="card grid">
           <div><label for="f_titre">Nom du fichier</label><input id="f_titre" name="titre" required placeholder="Photos de l’équipe"></div>
           <div><label for="f_cat">Type</label><select id="f_cat" name="categorie">
-            ${Object.entries(CATEGORIES).map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
-          <div class="full"><label for="f_url">Lien</label>
-            <input id="f_url" name="url" type="url" required placeholder="https://drive.google.com/…"></div>
+            ${Object.entries(CATEGORIES).filter(([v]) => v !== 'script').map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
+          <div class="full"><label for="f_url">Lien<span class="hint">Vidéo : Vimeo, YouTube non répertorié ou MP4. Photos : lien de la galerie Pic-Time. Même nom qu’une vidéo existante = nouvelle version (V2, V3…).</span></label>
+            <input id="f_url" name="url" type="url" required placeholder="https://vimeo.com/… ou https://….pic-time.com/…"></div>
           <div class="full form-foot"><button class="btn">Ajouter</button></div>
         </form>
       </details>
+      ${admin ? `<details class="ajout">
+        <summary class="btn btn-line">+ Écrire un script à faire valider</summary>
+        <form id="nouveau-script" class="card">
+          <label for="s_titre">Titre</label><input id="s_titre" name="titre" required placeholder="Script · film de présentation">
+          <label for="s_texte">Script<span class="hint">Séparez les passages par une ligne vide : le client peut commenter chaque passage.</span></label>
+          <textarea id="s_texte" name="texte" rows="12" required></textarea>
+          <div class="form-foot"><button class="btn">Déposer et prévenir le client</button></div>
+        </form>
+      </details>` : ''}
     </section>
 
     <section class="panel" data-panel="lancement">
@@ -524,12 +537,263 @@ async function renderProjet(id, onglet) {
     if (error) return alert(error.message);
     renderProjet(id, 'fichiers');
   };
+  const formScript = document.getElementById('nouveau-script');
+  if (formScript) formScript.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const { titre, texte } = Object.fromEntries(new FormData(formScript));
+    const { data: nv, error } = await sb.from('fichiers').insert({ projet_id: id, titre: titre.trim(), texte, categorie: 'script' }).select('id').single();
+    if (error) return alert(error.message);
+    location.hash = `#/projet/${id}/revue/${nv.id}`;
+  };
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
     if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
     if (error) return alert(error.message);
     renderProjet(id, 'fichiers');
+  }));
+}
+
+// Refonte : page projet côté client ---------------------------------------------
+// Une seule page qui se lit de haut en bas : où en est le projet, ce qu'on attend de vous,
+// ce qui est à regarder et valider, le carnet de ce qui s'est passé, puis les échanges.
+
+const estPicTime = (u) => /(^|\.|\/\/)pic-time\.com/i.test(u ?? '');
+const KIND = { video: 'Vidéo', maquette: 'Maquette', script: 'Script' };
+
+// Les versions successives d'un même livrable partagent catégorie et titre : V1, V2…
+function groupesVersions(fichiers) {
+  const g = new Map();
+  for (const f of [...(fichiers ?? [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))) {
+    if (!REVUE.includes(f.categorie) || !f.par_admin) continue;
+    const k = `${f.categorie}|${f.titre.trim().toLowerCase()}`;
+    if (!g.has(k)) g.set(k, []);
+    g.get(k).push(f);
+  }
+  return [...g.values()];
+}
+
+// Étapes que le client voit : après la signature, sans celles qui ne concernent pas sa prestation.
+function etapesVisibles(p) {
+  const svc = serviceDe(p);
+  return tri(p.etapes).filter((e) => e.numero >= 2 && !(svc.masquer ?? []).includes(e.numero));
+}
+
+function etatPiece(f, retours) {
+  const rs = (retours ?? []).filter((r) => r.fichier_id === f.id);
+  const val = rs.find((r) => r.type === 'validation');
+  if (val) return { cls: 'ok', txt: `Validé le ${jourCourt(val.created_at.slice(0, 10))}` };
+  const miens = rs.filter((r) => r.type === 'commentaire' && !r.par_admin);
+  if (miens.length && miens.some((r) => !r.traite)) return { cls: 'line', txt: `${miens.length} retour${miens.length > 1 ? 's' : ''} envoyé${miens.length > 1 ? 's' : ''} · on s’en occupe` };
+  if (miens.length) return { cls: 'line', txt: 'Retours pris en compte' };
+  return { cls: 'red', txt: f.categorie === 'script' ? 'À lire et valider' : 'À regarder et valider', aFaire: true };
+}
+
+async function renderProjetClient(id, ancre) {
+  const [{ data: p, error }, { data: lancement }, { data: fichiers }, { data: messages }, { data: retours }] = await Promise.all([
+    sb.from('projets').select('*, etapes(*)').eq('id', id).single(),
+    sb.from('lancements').select('*').eq('projet_id', id).maybeSingle(),
+    sb.from('fichiers').select('*').eq('projet_id', id).order('created_at'),
+    sb.from('messages').select('*').eq('projet_id', id).order('created_at'),
+    sb.from('retours').select('fichier_id, type, traite, par_admin, created_at').eq('projet_id', id),
+  ]);
+  if (error) return showError(error);
+
+  const svc = serviceDe(p);
+  const visibles = etapesVisibles(p);
+  const e = etapeCourante(p.etapes);
+  const fini = e?.statut === 'termine' && e.numero === 7;
+  const courante = visibles.find((v) => v.numero >= (e?.numero ?? 2)) ?? visibles.at(-1);
+  const rang = visibles.indexOf(courante);
+  const info = svc.etapes[courante?.numero] ?? {};
+
+  const groupes = groupesVersions(fichiers);
+  const pieces = groupes.map((vs) => ({ f: vs.at(-1), v: vs.length, etat: etatPiece(vs.at(-1), retours) }));
+  const aValider = pieces.filter((x) => x.etat.aFaire);
+  const livres = (fichiers ?? []).filter((f) => f.livrable);
+  const galeries = (fichiers ?? []).filter((f) => f.categorie === 'photo' && estPicTime(f.url));
+  const autres = (fichiers ?? []).filter((f) => !REVUE.includes(f.categorie) && !galeries.includes(f));
+  const reponses = { ...(lancement?.reponses ?? {}) };
+  const coches = new Set(reponses._guide ?? []);
+  const ficheUtile = !(svc.masquer ?? []).includes(3);
+  const ficheVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
+
+  // Action principale : ce qui débloque le projet maintenant.
+  const cta = aValider[0]
+    ? { href: `#/projet/${id}/revue/${aValider[0].f.id}`, txt: aValider[0].f.categorie === 'script' ? 'Lire le script' : `Regarder la V${aValider[0].v}` }
+    : livres.length ? { href: `#/projet/${id}/livraison`, txt: 'Découvrir votre livraison' }
+    : ficheUtile && ficheVide && (e?.numero ?? 0) >= 3 ? { href: '#preparation', txt: 'Remplir la fiche' } : null;
+  const titreEtat = fini ? 'Projet terminé, merci !'
+    : aValider[0] ? (aValider[0].f.categorie === 'script' ? 'Votre script vous attend' : 'Une nouvelle version vous attend')
+    : livres.length ? svc.livraison : info.titre;
+
+  // Carnet du projet : tout ce qui a bougé, du plus récent au plus ancien.
+  const vNum = new Map(groupes.flatMap((vs) => vs.map((f, i) => [f.id, i + 1])));
+  const carnet = [
+    ...tri(p.etapes).filter((x) => x.statut !== 'a_venir' && visibles.includes(x)).map((x) => ({
+      d: x.updated_at, txt: x.statut === 'termine' ? `<b>${esc(svc.etapes[x.numero]?.titre)}</b> : étape terminée.` : `<b>${esc(svc.etapes[x.numero]?.titre)}</b> : c’est parti.` })),
+    ...(fichiers ?? []).filter((f) => f.par_admin).map((f) => ({
+      d: f.created_at, txt: REVUE.includes(f.categorie)
+        ? `<b>Mackerprod</b> a déposé ${f.categorie === 'script' ? 'le script' : f.categorie === 'video' ? 'la vidéo' : 'la maquette'} « ${esc(f.titre)} » (V${vNum.get(f.id)}).`
+        : `<b>Mackerprod</b> a ajouté « ${esc(f.titre)} ».` })),
+    ...(retours ?? []).filter((r) => r.type === 'validation').map((r) => {
+      const f = (fichiers ?? []).find((x) => x.id === r.fichier_id);
+      return { d: r.created_at, txt: `<b>Vous</b> avez validé « ${esc(f?.titre ?? '')} »${vNum.get(r.fichier_id) ? ` (V${vNum.get(r.fichier_id)})` : ''}.` };
+    }),
+  ].filter((x) => x.d).sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 14);
+
+  const dernier = (messages ?? []).at(-1);
+
+  app.innerHTML = `
+    <a class="back" href="#/">← Mes projets</a>
+
+    <section class="pj-tete">
+      <p class="label red">${esc(svc.label)}${fini ? '' : ` · Étape ${rang + 1} sur ${visibles.length}`}</p>
+      <h1 class="h-l">${esc(p.titre)}</h1>
+      <div class="pj-etat">
+        <div>
+          <p class="pj-etat-t">${esc(titreEtat)}</p>
+          <p class="pj-etat-d">${esc(fini ? 'Toutes les étapes sont terminées. On reste là pour la suite.' : info.texte)}</p>
+          ${!fini && courante?.date_prevue && courante.statut !== 'termine' ? `<p class="quand">Prévu le ${esc(jourFr(courante.date_prevue))}</p>` : ''}
+          ${!fini && !cta && info.attendu ? `<p class="attendu">De votre côté : ${esc(info.attendu)}</p>` : ''}
+        </div>
+        ${cta ? `<a class="btn" href="${cta.href}">${esc(cta.txt)} →</a>` : ''}
+      </div>
+    </section>
+
+    <ol class="suivi" aria-label="Avancement du projet">${visibles.map((x, i) => {
+      const cls = fini || i < rang ? 'done' : i === rang ? 'now' : 'next';
+      const quand = cls === 'done' ? jourCourt(x.updated_at.slice(0, 10)) : x.date_prevue ? `Prévu le ${jourCourt(x.date_prevue)}` : cls === 'now' ? 'En cours' : '';
+      return `<li class="${cls}"><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t">${esc(svc.etapes[x.numero]?.titre)}</span><span class="d">${esc(quand)}</span></li>`;
+    }).join('')}</ol>
+
+    ${pieces.length ? `<section class="section">
+      <p class="label">À regarder, lire et valider</p>
+      <div class="pieces">${pieces.map(({ f, v, etat }) => `
+        <a class="piece ${etat.aFaire ? 'a-faire' : ''}" href="#/projet/${id}/revue/${f.id}">
+          <span class="piece-kind">${KIND[f.categorie]}${f.categorie === 'script' && v === 1 ? '' : ` · V${v}`}</span>
+          <strong class="piece-titre">${esc(f.titre)}</strong>
+          <span class="badge ${etat.cls}">${esc(etat.txt)}</span>
+          <span class="go">${f.categorie === 'script' ? 'Lire' : f.categorie === 'video' ? 'Regarder' : 'Voir'} →</span>
+        </a>`).join('')}</div>
+    </section>` : ''}
+
+    ${galeries.length ? `<section class="section">
+      <p class="label">Vos galeries photo</p>
+      <div class="galeries">${galeries.map((g) => `
+        <a class="galerie-carte" href="${esc(g.url)}" target="_blank" rel="noopener">
+          <span class="label bronze">Galerie privée</span>
+          <strong>${esc(g.titre)}</strong>
+          <span class="sub">Regardez, mettez vos préférées en favori et téléchargez en haute définition.</span>
+          <span class="go">Ouvrir la galerie ↗</span>
+        </a>`).join('')}</div>
+    </section>` : ''}
+
+    ${livres.length ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
+      <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">Découvrir →</span></a>` : ''}
+
+    <div class="pj-grille">
+      <section class="section" id="carnet">
+        <p class="label">Le carnet du projet</p>
+        <p class="panel-intro">Tout ce qui avance, au moment où ça avance.</p>
+        <ol class="carnet">${carnet.map((x) => `<li><time>${dateFr(x.d)}</time><span>${x.txt}</span></li>`).join('')
+          || '<li><span class="empty">Le carnet se remplit dès le lancement.</span></li>'}</ol>
+      </section>
+
+      <section class="section" id="messages">
+        <p class="label">Échanges</p>
+        <p class="panel-intro">Une question, une idée ? Écrivez-nous ici. Réponse sous 24 h ouvrées.</p>
+        <div class="fil">${(messages ?? []).map((m) => `<div class="bulle ${m.par_admin ? '' : 'moi'}">
+            <div class="qui"><b>${m.par_admin ? 'Mackerprod' : 'Vous'}</b> · ${dateFr(m.created_at)}</div>
+            <div>${esc(m.contenu).replace(/\n/g, '<br>')}</div></div>`).join('') || '<p class="empty">Aucun message pour l’instant.</p>'}
+        </div>
+        ${dernier && !dernier.par_admin ? '<p class="muted small" style="margin-top:8px">Message reçu. On vous répond sous 24 h ouvrées.</p>' : ''}
+        <form id="nouveau-message" class="ecrire">
+          <label for="msg_contenu">Votre message</label>
+          <textarea id="msg_contenu" name="contenu" rows="3" required placeholder="Écrire à Mackerprod…"></textarea>
+          <div class="form-foot"><button class="btn">Envoyer</button></div>
+        </form>
+      </section>
+    </div>
+
+    <section class="section guide-wrap" id="preparation">
+      <div>
+        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour le jour du tournage'}</p>
+        <p class="panel-intro">Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.</p>
+        <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
+        <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
+        ${ficheUtile ? `<details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
+          <summary class="btn btn-line btn-sm">${ficheVide ? 'Remplir la fiche de préparation' : 'Revoir la fiche de préparation'}</summary>
+          <p class="panel-intro" style="margin-top:16px">Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
+          ${formHtml('lancement', svc.fiche, reponses)}
+        </details>` : ''}
+      </div>
+      <div>
+        <p class="label">Votre équipe</p>
+        ${equipeHtml(svc.equipe)}
+      </div>
+    </section>
+
+    <section class="section" id="fichiers">
+      <p class="label">Vos fichiers</p>
+      <p class="panel-intro">Vos fichiers restent où vous les avez mis (Google Drive, WeTransfer…). Ici, on garde les liens pour tout retrouver.</p>
+      <ul class="fichiers">${autres.map((f) => `
+        <li><span class="tag">${CATEGORIES[f.categorie]}</span>
+          <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.titre)}</a>
+          <span class="meta">${f.par_admin ? 'Mackerprod' : 'Vous'} · ${dateFr(f.created_at)}</span>
+          ${f.livrable ? '<span class="badge ok">Livré</span>' : ''}
+          ${f.ajoute_par === profil.id ? `<button class="btn-txt" data-suppr="${f.id}">Retirer</button>` : ''}
+        </li>`).join('') || '<li><span class="empty">Aucun fichier pour l’instant.</span></li>'}
+      </ul>
+      <details class="ajout">
+        <summary class="btn btn-line btn-sm">+ Nous envoyer un lien</summary>
+        <form id="nouveau-fichier" class="card grid">
+          <div><label for="f_titre">Nom du fichier</label><input id="f_titre" name="titre" required placeholder="Logo, photos du bien…"></div>
+          <div><label for="f_cat">Type</label><select id="f_cat" name="categorie">
+            ${['photo', 'video', 'document', 'autre'].map((v) => `<option value="${v}">${CATEGORIES[v]}</option>`).join('')}</select></div>
+          <div class="full"><label for="f_url">Lien</label><input id="f_url" name="url" type="url" required placeholder="https://drive.google.com/…"></div>
+          <div class="full form-foot"><button class="btn">Envoyer</button></div>
+        </form>
+      </details>
+    </section>`;
+
+  const cible = { messages: 'messages', fichiers: 'fichiers', lancement: 'preparation', avancement: null }[ancre];
+  if (cible) setTimeout(() => document.getElementById(cible)?.scrollIntoView({ block: 'start' }), 0);
+  const fil = app.querySelector('.fil'); if (fil) fil.scrollTop = fil.scrollHeight;
+  app.querySelectorAll('a[href="#preparation"]').forEach((a) => (a.onclick = (ev) => {
+    ev.preventDefault(); const d = app.querySelector('.fiche-prep'); if (d) d.open = true;
+    document.getElementById('preparation').scrollIntoView({ behavior: 'smooth' });
+  }));
+
+  if (document.getElementById('lancement')) bindForm('lancement', (maj) => { Object.assign(reponses, maj); return sb.from('lancements').upsert({ projet_id: id, reponses }); });
+  app.querySelectorAll('[data-guide]').forEach((c) => (c.onchange = async () => {
+    const i = Number(c.dataset.guide);
+    c.checked ? coches.add(i) : coches.delete(i);
+    reponses._guide = [...coches].sort((a, b) => a - b);
+    document.getElementById('guide-compte').textContent = `${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}`;
+    const { error } = await sb.from('lancements').upsert({ projet_id: id, reponses });
+    if (error) alert(error.message);
+  }));
+  document.getElementById('nouveau-message').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const contenu = ev.target.contenu.value.trim();
+    if (!contenu) return;
+    const { error } = await sb.from('messages').insert({ projet_id: id, contenu });
+    if (error) return alert(error.message);
+    renderProjetClient(id, 'messages');
+  };
+  document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const { titre, url, categorie } = Object.fromEntries(new FormData(ev.target));
+    const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
+    if (error) return alert(error.message);
+    renderProjetClient(id, 'fichiers');
+  };
+  app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
+    if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
+    const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
+    if (error) return alert(error.message);
+    renderProjetClient(id, 'fichiers');
   }));
 }
 
@@ -834,28 +1098,47 @@ function analyserLien(url, categorie) {
   return { type: 'lien' };
 }
 
-// Lecteur commun : getTime() renvoie l'instant en secondes (ou null), seek(s) s'y place.
-async function monterLecteur(zone, lien, url) {
-  const vide = { getTime: async () => null, seek: () => {}, auto: false };
+// Lecteur commun : temps(), duree(), enPause() renvoient des promesses ; seek(s, lire) s'y place.
+// YouTube et MP4 n'affichent pas leurs propres contrôles : la barre Mackerprod les remplace.
+async function monterLecteur(zone, lien, url, { barre = false } = {}) {
+  const vide = { getTime: async () => null, duree: async () => null, enPause: async () => true, seek: () => {}, play: () => {}, pause: () => {}, auto: false };
   if (lien.type === 'youtube') {
     zone.innerHTML = '<div class="ratio"><div class="yt-cible"></div></div>';
     await chargerScript('https://www.youtube.com/iframe_api');
     await new Promise((ok) => (window.YT?.Player ? ok() : (window.onYouTubeIframeAPIReady = ok)));
     const player = await new Promise((ok) => {
-      const pl = new YT.Player(zone.querySelector('.yt-cible'), { videoId: lien.id, playerVars: { rel: 0 }, events: { onReady: () => ok(pl) } });
+      const pl = new YT.Player(zone.querySelector('.yt-cible'), {
+        videoId: lien.id,
+        playerVars: { rel: 0, modestbranding: 1, playsinline: 1, ...(barre ? { controls: 0, disablekb: 1, iv_load_policy: 3 } : {}) },
+        events: { onReady: () => ok(pl) },
+      });
     });
-    return { getTime: async () => player.getCurrentTime(), seek: (s) => { player.seekTo(s, true); player.playVideo(); }, pause: () => player.pauseVideo(), auto: true };
+    return {
+      getTime: async () => player.getCurrentTime(), duree: async () => player.getDuration(),
+      enPause: async () => player.getPlayerState() !== 1,
+      seek: (s, lire = true) => { player.seekTo(s, true); if (lire) player.playVideo(); },
+      play: () => player.playVideo(), pause: () => player.pauseVideo(), auto: true, propre: barre,
+    };
   }
   if (lien.type === 'vimeo') {
-    zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}${lien.hash ? `?h=${lien.hash}` : ''}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+    zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}?${lien.hash ? `h=${lien.hash}&` : ''}title=0&byline=0&portrait=0&color=941e28" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
     await chargerScript('https://player.vimeo.com/api/player.js');
     const player = new Vimeo.Player(zone.querySelector('iframe'));
-    return { getTime: () => player.getCurrentTime(), seek: (s) => { player.setCurrentTime(s); player.play(); }, pause: () => player.pause(), auto: true };
+    return {
+      getTime: () => player.getCurrentTime(), duree: () => player.getDuration(), enPause: () => player.getPaused(),
+      seek: (s, lire = true) => { player.setCurrentTime(s); if (lire) player.play(); },
+      play: () => player.play(), pause: () => player.pause(), auto: true,
+    };
   }
   if (lien.type === 'video') {
-    zone.innerHTML = `<div class="ratio"><video controls preload="metadata" src="${esc(url)}"></video></div>`;
+    zone.innerHTML = `<div class="ratio"><video ${barre ? 'playsinline' : 'controls'} preload="metadata" src="${esc(url)}"></video></div>`;
     const v = zone.querySelector('video');
-    return { getTime: async () => v.currentTime, seek: (s) => { v.currentTime = s; v.play(); }, pause: () => v.pause(), auto: true };
+    if (barre) v.onclick = () => (v.paused ? v.play() : v.pause());
+    return {
+      getTime: async () => v.currentTime, duree: async () => (Number.isFinite(v.duration) ? v.duration : null), enPause: async () => v.paused,
+      seek: (s, lire = true) => { v.currentTime = s; if (lire) v.play(); },
+      play: () => v.play(), pause: () => v.pause(), auto: true, propre: barre,
+    };
   }
   if (lien.type === 'drive') {
     zone.innerHTML = `<div class="ratio"><iframe src="https://drive.google.com/file/d/${lien.id}/preview" allow="autoplay" allowfullscreen></iframe></div>
@@ -870,99 +1153,223 @@ async function monterLecteur(zone, lien, url) {
   }
   zone.innerHTML = `<div class="notice">Ce lien ne peut pas être affiché ici.
     <a href="${esc(url)}" target="_blank" rel="noopener">Ouvrir dans un nouvel onglet →</a>
-    Vous pouvez quand même laisser vos commentaires ci-dessous.</div>`;
+    Vous pouvez quand même laisser vos commentaires à côté.</div>`;
   return vide;
 }
 
+// Salle de projection : une version d'une vidéo, d'une maquette ou d'un script.
+// Vidéo : chaque retour est accroché à un instant. Maquette : à un endroit. Script : à un passage (pos_y = n° du paragraphe).
 async function renderRevue(projetId, fichierId) {
   const admin = profil.role === 'admin';
   const [{ data: f, error }, { data: retours }, { data: p }] = await Promise.all([
     sb.from('fichiers').select('*').eq('id', fichierId).single(),
     sb.from('retours').select('*').eq('fichier_id', fichierId).order('created_at'),
-    sb.from('projets').select('titre, clients(nom, email)').eq('id', projetId).single(),
+    sb.from('projets').select('titre, type, clients(nom, email)').eq('id', projetId).single(),
   ]);
   if (error) return showError(error);
+  const { data: soeurs } = await sb.from('fichiers').select('id, titre, created_at, note_version')
+    .eq('projet_id', projetId).eq('categorie', f.categorie).eq('titre', f.titre).order('created_at');
+  const versions = soeurs?.length ? soeurs : [f];
+  const vNum = versions.findIndex((x) => x.id === f.id) + 1;
+  const derniere = versions.at(-1).id === f.id;
 
-  const lien = analyserLien(f.url, f.categorie);
+  const estScript = f.categorie === 'script';
+  const lien = estScript ? { type: 'script' } : analyserLien(f.url, f.categorie);
   const estVideo = ['youtube', 'vimeo', 'video', 'drive'].includes(lien.type) || (f.categorie === 'video' && lien.type === 'lien');
   const estImage = lien.type === 'image' || lien.type === 'drive-image';
-  const commentaires = (retours ?? []).filter((r) => r.type === 'commentaire')
-    .sort((a, b) => estVideo ? (a.temps_sec ?? 1e9) - (b.temps_sec ?? 1e9) : new Date(a.created_at) - new Date(b.created_at));
+  const commentaires = (retours ?? []).filter((r) => r.type === 'commentaire').sort((a, b) =>
+    estVideo ? (a.temps_sec ?? 1e9) - (b.temps_sec ?? 1e9)
+    : estScript ? (a.pos_y ?? 1e9) - (b.pos_y ?? 1e9) || new Date(a.created_at) - new Date(b.created_at)
+    : new Date(a.created_at) - new Date(b.created_at));
   const validation = (retours ?? []).find((r) => r.type === 'validation');
   const aTraiter = commentaires.filter((r) => !r.traite).length;
   const nomClient = p?.clients?.nom || p?.clients?.email || 'Client';
-  // Numéro d'épingle stable : ordre d'arrivée.
   const numeros = new Map((retours ?? []).filter((r) => r.pos_x != null).map((r, i) => [r.id, i + 1]));
+  const paragraphes = estScript ? f.texte.split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean) : [];
+  const parCommentes = new Set(commentaires.filter((r) => r.pos_y != null && estScript).map((r) => r.pos_y));
+  const svc = serviceDe(p);
+  const quoi = estScript ? 'Relecture du script' : estVideo ? 'Salle de projection' : 'Revue de maquette';
 
   app.innerHTML = `
-    <a class="back" href="#/projet/${projetId}/fichiers">← ${esc(p?.titre ?? 'Projet')}</a>
-    <p class="label rule" style="margin-top:28px">${estVideo ? 'Revue vidéo' : 'Revue de maquette'}</p>
-    <h1 class="h-l">${esc(f.titre)}</h1>
-    <p class="lead">${admin
-      ? `${aTraiter ? `<strong>${aTraiter}</strong> retour${aTraiter > 1 ? 's' : ''} à traiter.` : 'Tous les retours sont traités.'}`
-      : estVideo ? 'Lancez la vidéo, mettez-la en pause au moment voulu et écrivez votre remarque : l’instant est noté automatiquement.'
-      : 'Cliquez à l’endroit voulu sur la maquette puis écrivez votre remarque.'}</p>
+    <a class="back" href="#/projet/${projetId}">← ${esc(p?.titre ?? 'Projet')}</a>
+    <header class="salle-tete">
+      <div>
+        <p class="label red">${quoi} · ${esc(svc.label)}</p>
+        <h1 class="h-l">${esc(f.titre)}</h1>
+      </div>
+      <nav class="versions" aria-label="Versions">${versions.map((x, i) => `<a href="#/projet/${projetId}/revue/${x.id}" ${x.id === f.id ? 'aria-current="true"' : ''}>V${i + 1}<small>${jourCourt(x.created_at.slice(0, 10))}</small></a>`).join('')}</nav>
+    </header>
+    ${f.note_version ? `<p class="note-version"><span class="label bronze">Ce qui a changé dans la V${vNum}</span>${esc(f.note_version)}</p>` : ''}
+    ${!derniere ? `<p class="notice" style="margin-top:20px">Vous regardez une ancienne version. <a href="#/projet/${projetId}/revue/${versions.at(-1).id}">Voir la V${versions.length} →</a></p>` : ''}
+    ${validation ? `<div class="valide">✓ V${vNum} validée par ${admin ? esc(nomClient) : 'vous'} le ${dateFr(validation.created_at)}</div>` : ''}
+    ${admin ? `<p class="lead">${aTraiter ? `<strong>${aTraiter}</strong> retour${aTraiter > 1 ? 's' : ''} à traiter.` : 'Tous les retours sont traités.'}</p>`
+      : !validation && derniere ? `<p class="lead">${estScript ? 'Lisez le script. Cliquez sur un passage pour le commenter, ou écrivez vos idées dans la fenêtre à côté. Quand tout vous va, validez.'
+        : estVideo ? 'Lancez la vidéo. Quand quelque chose ne vous plaît pas, cliquez sur « Commenter » : votre remarque reste accrochée à cet instant précis.'
+        : 'Cliquez à l’endroit voulu sur la maquette puis écrivez votre remarque.'}</p>` : ''}
 
-    ${validation ? `<div class="valide">✓ Validé par ${admin ? esc(nomClient) : 'vous'} le ${dateFr(validation.created_at)}</div>` : ''}
+    <div class="salle">
+      <div class="salle-media">
+        ${estScript ? `<article class="script-page">
+            <p class="script-entete"><span>${esc(p?.titre ?? '')}</span><span>Script · V${vNum}</span></p>
+            ${paragraphes.map((x, i) => `<p class="par ${parCommentes.has(i) ? 'commente' : ''}" data-par="${i}" tabindex="0" title="Commenter ce passage">${esc(x).replace(/\n/g, '<br>')}</p>`).join('')}
+          </article>`
+        : `<div id="media"><p class="muted">Chargement du lecteur…</p></div>
+          ${estVideo ? `<div class="barre" id="barre" hidden>
+            <div class="scrub" id="scrub" role="slider" aria-label="Position dans la vidéo" tabindex="0"><div class="rail"></div><div class="fill"></div><div class="pins-t"></div><div class="tete"></div></div>
+            <div class="ctrl">
+              <button class="ico" id="pp" type="button" aria-label="Lecture"><span class="tri"></span></button>
+              <span class="tc"><span id="cur">0:00</span> / <span id="dur">–:––</span></span>
+              <span class="sp"></span>
+              <button class="btn btn-sm" id="commenter" type="button">Commenter à <span id="cur2">0:00</span></button>
+            </div>
+          </div>` : ''}`}
+      </div>
 
-    <div class="revue">
-      <div class="revue-media" id="media"><p class="muted">Chargement du lecteur…</p></div>
-      <aside class="revue-side">
-        <form id="retour" class="card">
-          <p class="label">Nouveau commentaire</p>
-          ${estVideo ? `<label for="r_temps">Instant<span class="hint">Rempli automatiquement quand vous écrivez</span></label>
-            <div class="temps-row"><input id="r_temps" name="temps" placeholder="0:00" inputmode="numeric"><button type="button" class="btn btn-line btn-sm" id="r_maintenant">Instant actuel</button></div>` : ''}
-          ${estImage ? '<p class="pin-info muted small" id="pin-info">Aucun endroit choisi : cliquez sur la maquette.</p>' : ''}
-          <label for="r_contenu">Remarque</label>
-          <textarea id="r_contenu" name="contenu" rows="3" required placeholder="${estVideo ? 'Ex. : couper ce plan, musique trop forte…' : 'Ex. : logo plus grand, changer cette photo…'}"></textarea>
-          <div class="form-foot"><button class="btn">Ajouter</button></div>
+      <aside class="salle-side">
+        <form id="retour" class="composer">
+          <p class="composer-at" id="ancre">${estVideo ? 'À <b id="ancre-t">0:00</b>' : estScript ? 'Remarque générale' : estImage ? 'Aucun endroit choisi : cliquez sur la maquette.' : 'Votre remarque'}</p>
+          ${estVideo ? '<input type="hidden" name="temps" id="r_temps">' : ''}
+          <label for="r_contenu" class="sr">Votre remarque</label>
+          <textarea id="r_contenu" name="contenu" rows="${estScript ? 5 : 3}" required placeholder="${estScript ? 'Vos idées, ce que vous voulez dire autrement, ce qui manque…' : estVideo ? 'Ex. : ce plan est trop court, on ne voit pas la cheminée.' : 'Ex. : logo plus grand, changer cette photo…'}"></textarea>
+          <div class="composer-pied">
+            ${estScript ? '<button type="button" class="btn-txt" id="general" hidden>Remarque générale</button>' : ''}
+            ${estVideo ? '<button type="button" class="btn-txt" id="sans-temps">Sans instant précis</button>' : ''}
+            <button class="btn btn-sm">Ajouter</button>
+          </div>
         </form>
-        ${!admin && !validation ? `<div class="card valider">
-          <p class="label">Tout vous convient ?</p>
-          <p class="muted small">Validez cette version. Vos commentaires restent visibles.</p>
-          <div class="form-foot"><button class="btn btn-line" id="valider">Valider cette version</button></div>
+
+        <div class="retours-tete"><p class="label">Retours</p><span class="label">${commentaires.length}</span></div>
+        <ul class="retours">${commentaires.map((r) => `
+          <li class="${r.traite ? 'fait' : ''} ${r.par_admin ? 'par-equipe' : ''}">
+            ${r.temps_sec != null ? `<button class="chip" data-seek="${r.temps_sec}" title="Aller à cet instant">${fmtTemps(r.temps_sec)}</button>`
+              : estScript && r.pos_y != null ? `<button class="chip" data-par-go="${r.pos_y}" title="Voir le passage">§ ${r.pos_y + 1}</button>`
+              : numeros.has(r.id) ? `<span class="chip pin-n">${numeros.get(r.id)}</span>` : '<span class="chip vide">·</span>'}
+            <div class="corps">
+              <div class="qui"><b>${r.par_admin ? 'Mackerprod' : admin ? esc(nomClient) : 'Vous'}</b> · ${dateFr(r.created_at)}</div>
+              <div>${esc(r.contenu).replace(/\n/g, '<br>')}</div>
+              <div class="etat">
+                ${admin ? `<label class="check"><input type="checkbox" data-traite="${r.id}" ${r.traite ? 'checked' : ''}> Traité</label>`
+                  : r.par_admin ? '' : `<span class="badge ${r.traite ? 'ok' : 'line'}">${r.traite ? 'Pris en compte' : 'Envoyé'}</span>`}
+                ${!admin && !r.traite && r.auteur === profil.id ? `<button class="btn-txt" data-suppr="${r.id}">Retirer</button>` : ''}
+              </div>
+            </div>
+          </li>`).join('') || '<li class="vide"><span class="empty">Aucun retour pour l’instant.</span></li>'}
+        </ul>
+
+        ${!admin && !validation && derniere ? `<div class="valider">
+          <p>${commentaires.some((r) => !r.par_admin) ? 'Vos retours partent directement à l’équipe. On vous prépare la version suivante sous 24 h ouvrées.' : 'Tout vous convient ? Validez cette version : l’équipe passe à la suite.'}</p>
+          <button class="btn btn-line" id="valider">Tout me va, je valide la V${vNum}</button>
         </div>` : ''}
+
+        ${admin && derniere ? `<details class="nouvelle-version">
+          <summary class="btn btn-line btn-sm">+ Déposer la V${versions.length + 1}</summary>
+          <form id="form-version" class="card">
+            ${estScript
+              ? `<label for="v_texte">Script</label><textarea id="v_texte" name="texte" rows="12" required>${esc(f.texte)}</textarea>`
+              : `<label for="v_url">Lien de la nouvelle version</label><input id="v_url" name="url" type="url" required placeholder="https://vimeo.com/…">`}
+            <label for="v_note">Ce qui a changé<span class="hint">Le client le lit en haut de la nouvelle version</span></label>
+            <textarea id="v_note" name="note_version" rows="2" placeholder="Plan de la cuisine rallongé, musique baissée…"></textarea>
+            <div class="form-foot"><button class="btn btn-sm">Déposer et prévenir le client</button></div>
+          </form>
+        </details>` : ''}
       </aside>
-    </div>
+    </div>`;
 
-    <section class="section">
-      <p class="label">Commentaires (${commentaires.length})</p>
-      <ul class="retours">${commentaires.map((r) => `
-        <li class="${r.traite ? 'fait' : ''}">
-          ${r.temps_sec != null ? `<button class="chip" data-seek="${r.temps_sec}" title="Aller à cet instant">▶ ${fmtTemps(r.temps_sec)}</button>` : ''}
-          ${numeros.has(r.id) ? `<span class="chip pin-n">${numeros.get(r.id)}</span>` : ''}
-          <div class="corps">
-            <div class="qui"><b>${r.par_admin ? 'Mackerprod' : admin ? esc(nomClient) : 'Vous'}</b> · ${dateFr(r.created_at)}</div>
-            <div>${esc(r.contenu).replace(/\n/g, '<br>')}</div>
-          </div>
-          <div class="etat">
-            ${admin
-              ? `<label class="check"><input type="checkbox" data-traite="${r.id}" ${r.traite ? 'checked' : ''}> Traité</label>`
-              : `<span class="badge ${r.traite ? 'ok' : 'line'}">${r.traite ? 'Traité' : 'Envoyé'}</span>`}
-            ${!admin && !r.traite && r.auteur === profil.id ? `<button class="btn-txt" data-suppr="${r.id}">Retirer</button>` : ''}
-          </div>
-        </li>`).join('') || '<li><span class="empty">Aucun commentaire pour l’instant.</span></li>'}
-      </ul>
-    </section>`;
-
-  const lecteur = await monterLecteur(document.getElementById('media'), lien, f.url);
   const form = document.getElementById('retour');
-  const champTemps = document.getElementById('r_temps');
+  const zoneAncre = document.getElementById('ancre');
+  let lecteur = null, pos = null, par = null;
 
-  // Vidéo : l'instant est capturé dès qu'on commence à écrire, et la vidéo se met en pause.
-  if (champTemps) {
-    const capturer = async () => {
-      const t = await lecteur.getTime();
-      if (t != null) { champTemps.value = fmtTemps(t); lecteur.pause?.(); }
+  if (!estScript) lecteur = await monterLecteur(document.getElementById('media'), lien, f.url, { barre: estVideo });
+
+  // Barre de lecture Mackerprod : progression, épingles des retours, « Commenter à… ».
+  const barre = document.getElementById('barre');
+  const champTemps = document.getElementById('r_temps');
+  let tempsFixe = null;
+  if (barre && lecteur?.auto) {
+    barre.hidden = false;
+    const scrub = document.getElementById('scrub');
+    let dur = null;
+    const majPins = () => {
+      if (!dur) return;
+      scrub.querySelector('.pins-t').innerHTML = commentaires.filter((r) => r.temps_sec != null).map((r) =>
+        `<button type="button" class="pin-t ${r.par_admin ? 'par-equipe' : ''} ${r.traite ? 'fait' : ''}" style="left:${Math.min(100, (100 * r.temps_sec) / dur)}%" data-seek="${r.temps_sec}" title="${fmtTemps(r.temps_sec)} · ${esc(r.contenu.slice(0, 80))}"></button>`).join('');
+      bindSeek(scrub);
     };
-    form.contenu.addEventListener('focus', () => { if (lecteur.auto && !champTemps.dataset.manuel) capturer(); });
-    champTemps.addEventListener('input', () => (champTemps.dataset.manuel = '1'));
-    document.getElementById('r_maintenant').onclick = () => { delete champTemps.dataset.manuel; capturer(); };
-    if (!lecteur.auto) document.getElementById('r_maintenant').hidden = true;
+    const tick = async () => {
+      if (!document.body.contains(barre)) return clearInterval(minuteur);
+      const [t, d, pause] = await Promise.all([lecteur.getTime(), dur ? dur : lecteur.duree(), lecteur.enPause()]);
+      if (d && !dur) { dur = d; document.getElementById('dur').textContent = fmtTemps(d); majPins(); }
+      const pc = dur ? Math.min(100, (100 * (t ?? 0)) / dur) : 0;
+      scrub.querySelector('.fill').style.width = pc + '%';
+      scrub.querySelector('.tete').style.left = pc + '%';
+      document.getElementById('cur').textContent = document.getElementById('cur2').textContent = fmtTemps(t ?? 0);
+      if (tempsFixe == null && champTemps) document.getElementById('ancre-t').textContent = fmtTemps(t ?? 0);
+      document.getElementById('pp').innerHTML = pause ? '<span class="tri"></span>' : '<span class="pause"></span>';
+      document.getElementById('pp').setAttribute('aria-label', pause ? 'Lecture' : 'Pause');
+    };
+    const minuteur = setInterval(tick, 250);
+    document.getElementById('pp').onclick = async () => ((await lecteur.enPause()) ? lecteur.play() : lecteur.pause());
+    if (!lecteur.propre) document.getElementById('pp').hidden = true;
+    const aller = (ev) => {
+      if (!dur || ev.target.closest('.pin-t')) return;
+      const r = scrub.getBoundingClientRect();
+      lecteur.seek(Math.max(0, Math.min(dur, ((ev.clientX - r.left) / r.width) * dur)), false);
+    };
+    scrub.addEventListener('pointerdown', (ev) => { aller(ev); scrub.setPointerCapture(ev.pointerId); scrub.onpointermove = aller; });
+    scrub.addEventListener('pointerup', () => (scrub.onpointermove = null));
+    scrub.addEventListener('keydown', async (ev) => {
+      const t = (await lecteur.getTime()) ?? 0;
+      if (ev.key === 'ArrowRight') lecteur.seek(t + 5, false);
+      if (ev.key === 'ArrowLeft') lecteur.seek(Math.max(0, t - 5), false);
+    });
+    document.getElementById('commenter').onclick = async () => {
+      lecteur.pause();
+      tempsFixe = (await lecteur.getTime()) ?? 0;
+      champTemps.value = fmtTemps(tempsFixe);
+      document.getElementById('ancre-t').textContent = fmtTemps(tempsFixe);
+      form.contenu.focus();
+    };
+    // Commencer à écrire fige l'instant et met la vidéo en pause.
+    form.contenu.addEventListener('focus', async () => {
+      if (tempsFixe != null) return;
+      lecteur.pause();
+      tempsFixe = (await lecteur.getTime()) ?? 0;
+      champTemps.value = fmtTemps(tempsFixe);
+      document.getElementById('ancre-t').textContent = fmtTemps(tempsFixe);
+    });
+    document.getElementById('sans-temps').onclick = () => { tempsFixe = -1; champTemps.value = ''; zoneAncre.textContent = 'Remarque générale'; form.contenu.focus(); };
+    tick();
+  } else if (estVideo) {
+    // Drive ou lien sans API : l'instant se note à la main.
+    zoneAncre.innerHTML = '<label for="r_temps_m">Instant (ex. 1:24)</label>';
+    champTemps.type = 'text'; champTemps.id = 'r_temps_m'; champTemps.placeholder = '0:00';
+    zoneAncre.after(champTemps);
+    document.getElementById('sans-temps').hidden = true;
   }
 
+  // Script : clic sur un passage = remarque accrochée à ce passage.
+  const choisirPar = (i) => {
+    par = i;
+    app.querySelectorAll('.par').forEach((el) => el.classList.toggle('choisi', Number(el.dataset.par) === i));
+    zoneAncre.innerHTML = `Sur le passage <b>§ ${i + 1}</b> <span class="extrait">« ${esc(paragraphes[i].slice(0, 90))}${paragraphes[i].length > 90 ? '…' : ''} »</span>`;
+    document.getElementById('general').hidden = false;
+    form.contenu.focus();
+  };
+  app.querySelectorAll('.par').forEach((el) => {
+    el.onclick = () => choisirPar(Number(el.dataset.par));
+    el.onkeydown = (ev) => { if (ev.key === 'Enter') choisirPar(Number(el.dataset.par)); };
+  });
+  document.getElementById('general')?.addEventListener('click', (ev) => {
+    par = null; ev.target.hidden = true; zoneAncre.textContent = 'Remarque générale';
+    app.querySelectorAll('.par').forEach((el) => el.classList.remove('choisi'));
+  });
+  app.querySelectorAll('[data-par-go]').forEach((b) => (b.onclick = () => {
+    const el = app.querySelector(`.par[data-par="${b.dataset.parGo}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el?.classList.add('flash'); setTimeout(() => el?.classList.remove('flash'), 1200);
+  }));
+
   // Maquette : épingles existantes + épingle en cours.
-  let pos = null;
   const maquette = app.querySelector('.maquette');
   if (maquette) {
     const pins = maquette.querySelector('.pins');
@@ -975,7 +1382,7 @@ async function renderRevue(projetId, fichierId) {
       pos = { x: Math.round(1000 * (ev.clientX - box.left) / box.width) / 10, y: Math.round(1000 * (ev.clientY - box.top) / box.height) / 10 };
       Object.assign(nouveau.style, { left: pos.x + '%', top: pos.y + '%' });
       nouveau.hidden = false;
-      document.getElementById('pin-info').textContent = 'Endroit choisi ✓ Écrivez votre remarque.';
+      zoneAncre.textContent = 'Endroit choisi ✓ Écrivez votre remarque.';
       form.contenu.focus();
     };
   }
@@ -991,15 +1398,20 @@ async function renderRevue(projetId, fichierId) {
       ligne.temps_sec = t;
     }
     if (pos) { ligne.pos_x = pos.x; ligne.pos_y = pos.y; }
+    if (estScript && par != null && par <= 100) ligne.pos_y = par;
     const { error } = await sb.from('retours').insert(ligne);
     if (error) return alert(error.message);
     renderRevue(projetId, fichierId);
   };
 
-  app.querySelectorAll('[data-seek]').forEach((b) => (b.onclick = () => {
-    lecteur.seek(Number(b.dataset.seek));
-    document.getElementById('media').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }));
+  function bindSeek(racine) {
+    racine.querySelectorAll('[data-seek]').forEach((b) => (b.onclick = (ev) => {
+      ev.stopPropagation();
+      lecteur?.seek(Number(b.dataset.seek), true);
+      document.getElementById('media')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+  }
+  bindSeek(app.querySelector('.retours'));
 
   app.querySelectorAll('[data-traite]').forEach((c) => (c.onchange = async () => {
     const { error } = await sb.from('retours').update({ traite: c.checked }).eq('id', c.dataset.traite);
@@ -1016,10 +1428,22 @@ async function renderRevue(projetId, fichierId) {
 
   const valider = document.getElementById('valider');
   if (valider) valider.onclick = async () => {
-    if (!confirm('Valider cette version ? Mackerprod sera prévenu.')) return;
+    if (!confirm(`Valider la V${vNum} ? Mackerprod sera prévenu.`)) return;
     const { error } = await sb.from('retours').insert({ fichier_id: fichierId, projet_id: projetId, type: 'validation' });
     if (error) return alert(error.message);
     renderRevue(projetId, fichierId);
+  };
+
+  const formVersion = document.getElementById('form-version');
+  if (formVersion) formVersion.onsubmit = async (ev) => {
+    ev.preventDefault();
+    const d = Object.fromEntries(new FormData(formVersion));
+    const { data: nv, error } = await sb.from('fichiers').insert({
+      projet_id: projetId, titre: f.titre, categorie: f.categorie,
+      url: d.url || null, texte: d.texte || null, note_version: d.note_version?.trim() || null,
+    }).select('id').single();
+    if (error) return alert(error.message);
+    location.hash = `#/projet/${projetId}/revue/${nv.id}`;
   };
 }
 
@@ -1072,7 +1496,8 @@ function livraisonHtml(d, { prive = false } = {}) {
   const svc = SERVICES[d.type] ?? SERVICES.site_web;
   const videos = d.fichiers.filter((f) => f.categorie === 'video');
   const images = d.fichiers.filter((f) => f.categorie !== 'video' && estImageUrl(f.url));
-  const autres = d.fichiers.filter((f) => f.categorie !== 'video' && !estImageUrl(f.url));
+  const galeries = d.fichiers.filter((f) => estPicTime(f.url));
+  const autres = d.fichiers.filter((f) => f.categorie !== 'video' && !estImageUrl(f.url) && !estPicTime(f.url));
   return `
     <section class="livraison-hero">
       <p class="label rule">${esc(svc.label)}</p>
@@ -1081,6 +1506,9 @@ function livraisonHtml(d, { prive = false } = {}) {
     </section>
     ${videos.map((f, i) => `<section class="section"><p class="label">${esc(f.titre)}</p><div class="lecteur" data-video="${i}"></div>
       <p class="small" style="margin-top:10px"><a href="${esc(f.url)}" target="_blank" rel="noopener">Ouvrir ou télécharger →</a></p></section>`).join('')}
+    ${galeries.length ? `<section class="section"><p class="label">Vos galeries photo</p><div class="galeries">${galeries.map((g) => `
+      <a class="galerie-carte" href="${esc(g.url)}" target="_blank" rel="noopener"><span class="label bronze">Galerie</span><strong>${esc(g.titre)}</strong>
+        <span class="sub">Regardez, choisissez vos préférées et téléchargez en haute définition.</span><span class="go">Ouvrir la galerie ↗</span></a>`).join('')}</div></section>` : ''}
     ${images.length ? `<section class="section"><p class="label">Photos</p><div class="galerie">${images.map((f) =>
       `<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.titre)}" loading="lazy"></a>`).join('')}</div></section>` : ''}
     ${autres.length ? `<section class="section"><p class="label">${prive ? 'Vos fichiers' : 'Fichiers'}</p><div class="todo">${autres.map((f) => `
