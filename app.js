@@ -414,17 +414,69 @@ function progression(p) {
   const i = vs.findIndex((x) => x.numero >= (e?.numero ?? 2));
   return Math.round((100 * Math.max(0, i)) / Math.max(1, vs.length));
 }
-function vignetteProjet(p, fichiers, { st = '', stCls = '', tc = '', sous = '' } = {}) {
+// Fenêtre de confirmation Mackerprod (Valider / Annuler), avec une case à cocher facultative.
+function confirmer({ titre, texte, valider = 'Valider', danger = false, coche = null }) {
+  return new Promise((ok) => {
+    const d = document.createElement('dialog');
+    d.className = 'confirmer';
+    d.innerHTML = `<form method="dialog">
+      <h2>${esc(titre)}</h2><p>${esc(texte)}</p>
+      ${coche ? `<label class="check"><input type="checkbox" name="coche"> ${esc(coche)}</label>` : ''}
+      <div class="confirmer-actions"><button value="non" class="btn btn-line">Annuler</button>
+        <button value="oui" class="btn ${danger ? 'btn-danger' : ''}">${esc(valider)}</button></div></form>`;
+    document.body.append(d);
+    d.addEventListener('close', () => {
+      ok({ ok: d.returnValue === 'oui', coche: !!d.querySelector('[name="coche"]')?.checked });
+      d.remove();
+    });
+    d.addEventListener('click', (e) => { if (e.target === d) d.close('non'); });
+    d.showModal();
+    d.querySelector('button[value="non"]').focus();
+  });
+}
+
+// Supprime un projet (et, si demandé, ses vidéos sur Vimeo). Renvoie true si c'est fait.
+async function supprimerProjet(p) {
+  const { data: fs } = await sb.from('fichiers').select('url').eq('projet_id', p.id);
+  const videos = [...new Set((fs ?? []).map((x) => x.url).filter((u) => u && /vimeo\.com\/(?:video\/)?\d+/.test(u)))];
+  const r = await confirmer({
+    titre: 'Supprimer ce projet ?',
+    texte: `Attention, vous êtes sur le point de supprimer « ${p.titre} » : étapes, messages, fichiers et retours. Le client ne le verra plus. C’est définitif.`,
+    valider: 'Supprimer', danger: true,
+    coche: videos.length ? `Supprimer aussi ${videos.length > 1 ? `les ${videos.length} vidéos` : 'la vidéo'} sur Vimeo` : null,
+  });
+  if (!r.ok) return false;
+  const { error } = await sb.from('projets').delete().eq('id', p.id);
+  if (error) { alert(messageErreur(error)); return false; }
+  if (r.coche) for (const u of videos) await sb.functions.invoke('vimeo-upload', { body: { action: 'supprimer', url: u } });
+  return true;
+}
+
+// Menu « ⋮ » des vignettes (équipe) : un seul ouvert à la fois, fermé au clic ailleurs.
+document.addEventListener('click', (e) => {
+  const bouton = e.target.closest('.vig-menu > button');
+  document.querySelectorAll('.vig-menu.ouvert').forEach((m) => { if (!bouton || m !== bouton.parentElement) m.classList.remove('ouvert'); });
+  if (bouton) { e.preventDefault(); bouton.parentElement.classList.toggle('ouvert'); bouton.setAttribute('aria-expanded', bouton.parentElement.classList.contains('ouvert')); }
+});
+
+function vignetteProjet(p, fichiers, { st = '', stCls = '', tc = '', sous = '', menu = false } = {}) {
   const img = (fichiers ?? []).filter((f) => f.projet_id === p.id && f.url && ['video', 'photo'].includes(f.categorie))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map((f) => imageDe(f.url)).find(Boolean);
   const [c1, c2] = DEGRADES[p.type] ?? DEGRADES.site_web;
   const mono = (p.titre || '?').split(/\s+/).filter((w) => w.length > 2).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
-  return `<a class="vignette" href="#/projet/${p.id}">
+  const lien = `<a class="vignette" href="#/projet/${p.id}">
     <span class="th" style="background:linear-gradient(150deg, ${c1}, ${c2})">${img ? `<img src="${esc(img)}" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" onerror="this.remove()">` : ''}
       ${img ? '' : `<span class="mono">${esc(mono)}</span>`}${st ? `<span class="st ${stCls}">${esc(st)}</span>` : ''}${tc ? `<span class="tc">${esc(tc)}</span>` : ''}</span>
     <b>${esc(p.titre)}</b><small>${esc(sous)}</small>
     <span class="bar"><i style="width:${progression(p)}%"></i></span>
   </a>`;
+  if (!menu) return lien;
+  return `<div class="vig-wrap">${lien}
+    <div class="vig-menu"><button type="button" aria-label="Options du projet" aria-expanded="false" aria-haspopup="true">⋮</button>
+      <div class="vig-pop" role="menu">
+        <a role="menuitem" href="#/projet/${p.id}/reglages">Réglages</a>
+        <button type="button" role="menuitem" class="danger" data-supprimer-projet="${p.id}">Supprimer le projet</button>
+      </div></div></div>`;
 }
 
 function parcoursHtml(p, editable = false) {
@@ -728,15 +780,7 @@ async function renderProjet(id, onglet) {
 
   const btnSuppr = document.getElementById('supprimer-projet');
   if (btnSuppr) btnSuppr.onclick = async () => {
-    const saisie = prompt(`Supprimer définitivement « ${p.titre} » et tout son contenu ?\nTapez SUPPRIMER pour confirmer.`);
-    if (saisie?.trim().toUpperCase() !== 'SUPPRIMER') return;
-    // Vidéos envoyées sur Vimeo pour ce projet : proposer de les supprimer aussi.
-    const videos = [...new Set((fichiers ?? []).map((x) => x.url).filter((u) => u && /vimeo\.com\/(?:video\/)?\d+/.test(u)))];
-    const aussiVimeo = videos.length && confirm(`Supprimer aussi ${videos.length > 1 ? `les ${videos.length} vidéos` : 'la vidéo'} de ce projet sur Vimeo ?\nOK : supprimer chez Vimeo · Annuler : les garder sur Vimeo`);
-    const { error } = await sb.from('projets').delete().eq('id', id);
-    if (error) return alert(messageErreur(error));
-    if (aussiVimeo) for (const u of videos) await sb.functions.invoke('vimeo-upload', { body: { action: 'supprimer', url: u } });
-    location.hash = `#/client/${p.client_id}`;
+    if (await supprimerProjet(p)) location.hash = `#/client/${p.client_id}`;
   };
   zoneVimeo(document.getElementById('f_url'), () => document.getElementById('f_titre').value.trim(), id);
   // La zone de dépôt Vimeo ne sert que pour une vidéo.
@@ -1119,7 +1163,7 @@ function etatVignette(l) {
 }
 function vignetteEquipe(l, fichiers) {
   const date = l.e?.date_prevue && l.e.statut !== 'termine' ? l.e.date_prevue : l.p.prochain_rdv;
-  return vignetteProjet(l.p, fichiers, { ...etatVignette(l), tc: date ? jourCourt(date) : '', sous: `${l.c.nom || l.c.email} · ${serviceDe(l.p).label}` });
+  return vignetteProjet(l.p, fichiers, { ...etatVignette(l), tc: date ? jourCourt(date) : '', sous: `${l.c.nom || l.c.email} · ${serviceDe(l.p).label}`, menu: true });
 }
 const urgence = (l) => (l.retours || l.aRepondre ? 0 : l.valide ? 1 : l.fini ? 9 : 2);
 
@@ -1193,6 +1237,10 @@ async function renderProjetsAdmin() {
     app.querySelector('.filtres').innerHTML = FILTRES.map(([k, t, fn]) => `<button type="button" data-f="${k}" aria-pressed="${k === f[0]}">${t}<i>${lignes.filter(fn).length}</i></button>`).join('');
     app.querySelector('.vignettes').innerHTML = tri2.filter(f[2]).map((l) => vignetteEquipe(l, fichiers)).join('') || '<p class="empty">Aucun projet ici.</p>';
     app.querySelectorAll('[data-f]').forEach((b) => (b.onclick = () => { filtreProjets = b.dataset.f; dessiner(); }));
+    app.querySelectorAll('[data-supprimer-projet]').forEach((b) => (b.onclick = async () => {
+      const l = lignes.find((x) => x.p.id === b.dataset.supprimerProjet);
+      if (l && await supprimerProjet(l.p)) renderProjetsAdmin();
+    }));
   };
   app.innerHTML = `
     <div class="hello"><div><p class="label">Projets</p><h1 class="h-l">Tous les projets</h1></div>
