@@ -520,3 +520,8 @@ a.puce:hover { border-color: var(--line-2); }
 .depot-vimeo .etat { margin-top: 6px; color: var(--text-2); }
 .mdp-video { margin-top: 10px; font-size: .88rem; color: var(--text-2); }
 .mdp-video b { color: var(--fg); letter-spacing: .04em; user-select: all; }
+
+/* Suppression d'un projet (équipe) */
+.zone-danger { border-top: 1px solid var(--line); padding-top: 18px; }
+.btn.danger { color: #ff7a84; border-color: rgba(255, 122, 132, .5); margin-top: 10px; }
+.btn.danger:hover { background: rgba(255, 122, 132, .1); }
