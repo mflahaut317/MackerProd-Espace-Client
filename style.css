@@ -738,3 +738,17 @@ dialog.confirmer[open]::backdrop { animation: mk-fondu .22s ease both; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Barre de lecture fluide : la tête glisse en continu, la barre grossit au survol,
+   une bulle donne l'instant visé, et pendant le glissé tout suit le doigt sans délai. */
+.scrub .rail, .scrub .fill { transition: height .15s, top .15s; }
+.scrub .tete { transition: transform .15s; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+.scrub.lit .fill { transition: width .25s linear, height .15s, top .15s; }
+.scrub.lit .tete { transition: left .25s linear, transform .15s; }
+.scrub:hover .rail, .scrub:hover .fill, .scrub.glisse .rail, .scrub.glisse .fill { top: 10px; height: 5px; }
+.scrub:hover .tete { transform: scale(1.2); }
+.scrub.glisse .tete { transform: scale(1.45); }
+.scrub.glisse { cursor: grabbing; }
+.survol-t { position: absolute; bottom: 26px; left: 0; transform: translateX(-50%); padding: 3px 7px; border-radius: 5px; background: rgba(10, 12, 15, .9); color: #fff; font: 500 .74rem/1.2 var(--sans); font-variant-numeric: tabular-nums; pointer-events: none; opacity: 0; transition: opacity .15s; white-space: nowrap; }
+.scrub:hover .survol-t, .scrub.glisse .survol-t { opacity: 1; }
+@media (hover: none) { .scrub:not(.glisse) .survol-t { opacity: 0; } }
