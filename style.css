@@ -525,3 +525,9 @@ a.puce:hover { border-color: var(--line-2); }
 .zone-danger { border-top: 1px solid var(--line); padding-top: 18px; }
 .btn.danger { color: #ff7a84; border-color: rgba(255, 122, 132, .5); margin-top: 10px; }
 .btn.danger:hover { background: rgba(255, 122, 132, .1); }
+
+/* Mention d'une marque de Mackerprod (Stu'Dee) sous le titre du projet */
+.signature { display: flex; align-items: center; gap: 10px; margin: 8px 0 4px; color: var(--muted); font-size: .9rem; }
+.signature img { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+.signature b { color: var(--bronze, #c9a27a); font-weight: 500; }
+.signature span { display: block; font-size: .82rem; }

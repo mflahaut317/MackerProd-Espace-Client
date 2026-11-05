@@ -88,6 +88,14 @@ const jourFr = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { we
 const jourCourt = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
 const equipeHtml = (ids) => `<div class="equipe">${ids.map((k) => EQUIPE[k]).map((m) => `
   <figure><img src="${m.photo}" alt="${esc(m.nom)}" loading="lazy"><figcaption><b>${esc(m.nom)}</b><span>${esc(m.role)}</span></figcaption></figure>`).join('')}</div>`;
+// Prestation d'une marque de Mackerprod (ex. Stu'Dee) : mention discrète + interlocuteur.
+const signatureHtml = (svc) => {
+  if (!svc.marque) return '';
+  const m = EQUIPE[svc.interlocuteur];
+  return `<div class="signature">${m ? `<img src="${m.photo}" alt="">` : ''}
+    <p><b>${esc(svc.marque)}</b> · par Mackerprod${m ? `<span>Votre ${m.nom === 'Delphine' ? 'photographe' : 'interlocuteur'} : ${esc(m.nom)}</span>` : ''}</p></div>`;
+};
+const nousDe = (svc) => (svc.marque ? `${EQUIPE[svc.interlocuteur]?.nom ?? 'Mackerprod'} · ${svc.marque.split(' ')[0]}` : 'Mackerprod');
 const aujourdhui = () => new Date().toLocaleDateString('sv-SE');
 const DEMANDES = { parrainage: 'Parrainage', tirages: 'Tirages photo', album: 'Album', nouveau_projet: 'Nouveau projet' };
 const rempli = (v) => v != null && String(v).trim() !== '';
@@ -828,6 +836,7 @@ async function renderProjetClient(id, ancre) {
     <section class="pj-tete">
       <p class="label red">${esc(svc.label)}${fini ? '' : ` · Étape ${rang + 1} sur ${visibles.length}<span class="mobile-seul"> · ${esc(svc.etapes[visibles[rang]?.numero]?.titre ?? '')}</span>`}</p>
       <h1 class="h-l">${esc(p.titre)}</h1>
+      ${signatureHtml(svc)}
       <div class="pj-etat">
         <div>
           <p class="pj-etat-t">${esc(titreEtat)}</p>
@@ -882,7 +891,7 @@ async function renderProjetClient(id, ancre) {
       <section id="messages">
         <p class="panel-intro">Une question, une idée ? Écrivez-nous ici. Réponse sous 24 h ouvrées.</p>
         <div class="fil">${(messages ?? []).map((m) => `<div class="bulle ${m.par_admin ? '' : 'moi'}">
-            <div class="qui"><b>${m.par_admin ? 'Mackerprod' : 'Vous'}</b> · ${dateFr(m.created_at)}</div>
+            <div class="qui"><b>${m.par_admin ? esc(nousDe(svc)) : 'Vous'}</b> · ${dateFr(m.created_at)}</div>
             <div>${esc(m.contenu).replace(/\n/g, '<br>')}</div></div>`).join('') || '<p class="empty">Aucun message pour l’instant.</p>'}
         </div>
         ${dernier && !dernier.par_admin ? '<p class="muted small" style="margin-top:8px">Message reçu. On vous répond sous 24 h ouvrées.</p>' : ''}
@@ -909,7 +918,7 @@ async function renderProjetClient(id, ancre) {
       <ul class="fichiers">${autres.map((f) => `
         <li><span class="tag">${CATEGORIES[f.categorie]}</span>
           <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.titre)}</a>
-          <span class="meta">${f.par_admin ? 'Mackerprod' : 'Vous'} · ${dateFr(f.created_at)}</span>
+          <span class="meta">${f.par_admin ? esc(nousDe(svc)) : 'Vous'} · ${dateFr(f.created_at)}</span>
           ${f.livrable ? '<span class="badge ok">Livré</span>' : ''}
           ${f.ajoute_par === profil.id ? `<button class="btn-txt" data-suppr="${f.id}">Retirer</button>` : ''}
         </li>`).join('') || '<li><span class="empty">Aucun fichier pour l’instant.</span></li>'}
@@ -1829,7 +1838,8 @@ function livraisonHtml(d, { prive = false } = {}) {
     <section class="livraison-hero">
       <p class="label rule">${esc(svc.label)}</p>
       <h1 class="h-l">${esc(svc.livraison).replace(/^(\S+)/, '$1')} <span class="sous">${esc(d.titre)}</span></h1>
-      ${d.mot ? `<blockquote class="mot">${esc(d.mot).replace(/\n/g, '<br>')}<cite>L’équipe Mackerprod</cite></blockquote>` : ''}
+      ${signatureHtml(svc)}
+      ${d.mot ? `<blockquote class="mot">${esc(d.mot).replace(/\n/g, '<br>')}<cite>${svc.marque ? `${esc(EQUIPE[svc.interlocuteur]?.nom ?? '')}, ${esc(svc.marque)}` : 'L’équipe Mackerprod'}</cite></blockquote>` : ''}
     </section>
     ${videos.map((f, i) => `<section class="section"><p class="label">${esc(f.titre)}</p><div class="lecteur" data-video="${i}"></div>
       <p class="small" style="margin-top:10px"><a href="${esc(f.url)}" target="_blank" rel="noopener">Ouvrir ou télécharger →</a></p></section>`).join('')}

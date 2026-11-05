@@ -214,6 +214,8 @@ export const SERVICES = {
 
   seance_photo: {
     label: 'Séance photo · Stu’Dee', cible: 'particulier',
+    // Stu'Dee fait partie de Mackerprod : simple mention sous le titre, Delphine comme interlocutrice.
+    marque: 'Stu’Dee Photographie', interlocuteur: 'delphine',
     livraison: 'Vos photos sont prêtes',
     equipe: ['delphine'],
     guide: [
