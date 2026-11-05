@@ -551,27 +551,45 @@ async function renderProjet(id, onglet) {
 
     ${admin ? `<section class="panel" data-panel="reglages">
       <a class="btn-txt" href="#/projet/${id}/avancement">← Retour au projet</a>
-      <div class="section" style="margin-top:18px">
-        <p class="label">Étapes et dates · « Passer ici » déplace le projet</p>
-        ${parcoursHtml(p, admin)}
+      <div class="reglages">
+        <div class="reglage">
+          <div class="reglage-tete"><h3>Planning</h3><p>Une date par étape (elle part dans l’agenda). « Passer ici » déplace le projet à cette étape.</p></div>
+          <ol class="planning">${tri(p.etapes).map((e) => `
+            <li class="${e.statut}">
+              <span class="pl-n">${e.numero}</span>
+              <span class="pl-t">${esc(svc.etapes[e.numero]?.titre)}${(svc.masquer ?? []).includes(e.numero) ? ' <small>(masquée au client)</small>' : ''}</span>
+              <span class="pl-s">${e.statut === 'en_cours' ? '<span class="badge red">En cours</span>' : e.statut === 'termine' ? '<span class="badge ok">Fait</span>' : ''}</span>
+              <input type="date" class="date-etape" data-projet="${id}" data-numero="${e.numero}" value="${e.date_prevue ?? ''}" aria-label="Date de l’étape ${e.numero}">
+              <span class="pl-a">${e.statut === 'en_cours' ? '' : `<button type="button" class="btn-txt" data-aller="${e.numero}">${e.statut === 'termine' ? 'Revenir ici' : 'Passer ici'}</button>`}</span>
+            </li>`).join('')}</ol>
+        </div>
+
+        <div class="reglage">
+          <div class="reglage-tete"><h3>Prochain rendez-vous</h3><p>Visible par le client, avec un rappel 7 jours avant (vous aussi).</p></div>
+          <form id="prochain-rdv" class="reglage-ligne">
+            <input type="date" name="prochain_rdv" value="${esc(p.prochain_rdv)}" aria-label="Date du rendez-vous">
+            <input name="prochain_rdv_note" value="${esc(p.prochain_rdv_note)}" placeholder="Ex. prochain tournage Frame²" aria-label="Quoi">
+            <button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span>
+          </form>
+        </div>
+
+        <div class="reglage">
+          <div class="reglage-tete"><h3>Mot de livraison</h3><p>En haut de la page de livraison. Les fichiers à livrer se cochent dans Fichiers (« Livrable final »).</p></div>
+          <form id="mot-livraison"><textarea name="mot" rows="3" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
+            <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
+        </div>
+
+        <div class="reglage">
+          <div class="reglage-tete"><h3>Prestation</h3><p>Change les noms des étapes et la fiche de préparation.</p></div>
+          <select id="changer-type">${Object.entries(SERVICES).map(([k, v]) =>
+            `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
+        </div>
+
+        <div class="reglage zone-danger">
+          <div class="reglage-tete"><h3>Supprimer le projet</h3><p>Efface étapes, messages, fichiers et retours. Irréversible.</p></div>
+          <div><button type="button" class="btn btn-line btn-sm danger" id="supprimer-projet">Supprimer ce projet</button></div>
+        </div>
       </div>
-      <div class="section"><p class="label">Mot de l’équipe pour la livraison</p>
-        <form id="mot-livraison"><textarea name="mot" rows="3" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
-        <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
-        <p class="muted small" style="margin-top:6px">Affiché en haut de la page de livraison. Cochez « Livrable final » sur les fichiers à livrer dans l’onglet Fichiers.</p></div>
-      <div class="section"><p class="label">Prochain rendez-vous</p>
-        <form id="prochain-rdv" class="grid" style="max-width:640px">
-          <div><label for="rdv_date">Date</label><input id="rdv_date" type="date" name="prochain_rdv" value="${esc(p.prochain_rdv)}"></div>
-          <div><label for="rdv_note">Quoi</label><input id="rdv_note" name="prochain_rdv_note" value="${esc(p.prochain_rdv_note)}" placeholder="Prochain tournage Frame²"></div>
-          <div class="full form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
-        <p class="muted small" style="margin-top:6px">Le client le voit dans son espace et reçoit un rappel 7 jours avant (vous aussi).</p></div>
-      <div class="section"><p class="label">Prestation</p>
-        <select id="changer-type" style="max-width:420px">${Object.entries(SERVICES).map(([k, v]) =>
-          `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
-        <p class="muted small" style="margin-top:6px">Change les noms des étapes et la fiche de préparation de ce projet.</p></div>
-      <div class="section zone-danger"><p class="label">Supprimer le projet</p>
-        <p class="muted small">Efface le projet et tout ce qu’il contient dans l’espace client : étapes, messages, fichiers, retours. Le client ne le verra plus. Irréversible.</p>
-        <button type="button" class="btn btn-line btn-sm danger" id="supprimer-projet">Supprimer « ${esc(p.titre)} »</button></div>
     </section>` : ''}
 
     <section class="panel" data-panel="messages">
