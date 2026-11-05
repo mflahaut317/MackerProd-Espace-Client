@@ -168,7 +168,7 @@ function renderLogin() {
       email, options: { emailRedirectTo: location.origin + location.pathname },
     });
     e.target.innerHTML = error
-      ? `<p class="msg err">Erreur : ${esc(error.message)}</p>`
+      ? `<p class="msg err">${esc(messageErreur(error))}</p>`
       : `<p class="h-m">Vérifiez votre boîte mail</p>
          <p class="lead">Un lien de connexion a été envoyé à <strong>${esc(email)}</strong>.
          Ouvrez-le sur cet appareil. Pensez à regarder dans les indésirables.</p>`;
@@ -387,7 +387,7 @@ function bindForm(id, enregistrer, apres) {
     const out = form.querySelector('.msg');
     const { error } = await enregistrer(Object.fromEntries(new FormData(form)));
     out.className = error ? 'msg err' : 'msg';
-    out.textContent = error ? `Erreur : ${error.message}` : 'Enregistré ✓';
+    out.textContent = error ? messageErreur(error) : 'Enregistré ✓';
     if (!error && apres) setTimeout(apres, 900);
   };
 }
@@ -1221,6 +1221,9 @@ function messageErreur(error) {
   if (/clients_email_key/.test(m)) return 'Un client existe déjà avec cet e-mail. Ouvrez-le dans la liste des clients.';
   if (error?.code === '23505' || /duplicate key/.test(m)) return 'Cet élément existe déjà.';
   if (error?.code === '42501' || /row-level security|permission denied/i.test(m)) return 'Vous n’avez pas l’autorisation de faire cette action.';
+  const attente = m.match(/request this after (\d+) seconds?/i);
+  if (attente) return `Un lien vient déjà d’être envoyé. Patientez ${attente[1]} secondes avant d’en redemander un.`;
+  if (/rate limit/i.test(m)) return 'Trop de demandes d’affilée. Patientez quelques minutes avant de réessayer.';
   if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Connexion impossible. Vérifiez votre réseau et réessayez.';
   return m || 'Une erreur est survenue.';
 }
