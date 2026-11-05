@@ -54,22 +54,25 @@ Deno.serve(async (req) => {
 
   if (!Number.isFinite(taille) || taille <= 0) return json({ error: 'Taille de fichier invalide.' }, 400);
 
-  const creer = (privacy: Record<string, unknown>) => fetch(`${VIMEO}/me/videos`, {
+  // Vimeo attend le mot de passe à la racine (« password »), pas dans « privacy ».
+  const creer = (view: string, password?: string) => fetch(`${VIMEO}/me/videos`, {
     method: 'POST',
     headers: entetes(jeton),
     body: JSON.stringify({
       upload: { approach: 'tus', size: taille },
       name: String(nom || 'Vidéo Mackerprod').slice(0, 128),
-      privacy: { download: false, add: false, comments: 'nobody', ...privacy },
+      privacy: { download: false, add: false, comments: 'nobody', view },
+      ...(password ? { password } : {}),
     }),
   });
 
   // 1er essai : « Non répertorié » (formules payantes supérieures). Sinon : mot de passe.
   let mdp: string | null = null;
-  let r = await creer({ view: 'unlisted' });
+  let r = await creer('unlisted');
   if (!r.ok && r.status >= 400 && r.status < 500) {
+    console.error('Vimeo unlisted refusé', r.status, await r.text());
     mdp = motDePasse();
-    r = await creer({ view: 'password', password: mdp });
+    r = await creer('password', mdp);
   }
   if (!r.ok) {
     const detail = await r.text();
