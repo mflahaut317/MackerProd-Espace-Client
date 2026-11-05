@@ -113,7 +113,7 @@ async function demarrer(session) {
 function router() {
   window.scrollTo(0, 0);
   menu();
-  document.body.classList.toggle('sombre', /\/revue\//.test(location.hash));
+  document.body.classList.add('sombre');
   const pt = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
   if (pt) return renderPartage(pt[1]);
   const lv = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/livraison$/);
