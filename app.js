@@ -1058,8 +1058,8 @@ async function renderClientsAdmin() {
       const ls = lignes.filter((l) => l.c.id === c.id);
       const alerte = ls.some((l) => l.aRepondre || l.retours);
       return `<a class="ligne cl" href="#/client/${c.id}"><span class="av">${esc(initiales(c))}</span>
-        <span><b>${esc(c.nom || c.email)}</b><small>${esc([c.entreprise, ls.map((l) => l.p.titre).join(', ')].filter(Boolean).join(' · ') || c.email)}</small></span>
-        <span class="badge ${alerte ? 'red' : 'line'}">${alerte ? 'À traiter' : `${ls.length} projet${ls.length > 1 ? 's' : ''}`}</span><span class="muted">→</span></a>`;
+        <span><b>${esc(c.nom || c.email)}</b>${c.entreprise ? `<small>${esc(c.entreprise)}</small>` : ''}</span>
+        ${alerte ? '<span class="badge red">À traiter</span>' : '<i></i>'}<span class="muted">→</span></a>`;
     }).join('') || '<div class="ligne vide"><span class="dot n"></span><span><small>Aucun client pour l’instant.</small></span></div>'}</section>`;
 
   document.getElementById('nouveau').onsubmit = async (ev) => {
