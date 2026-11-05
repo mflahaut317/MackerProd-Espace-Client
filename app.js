@@ -47,8 +47,7 @@ const STATUTS = { a_venir: 'À venir', en_cours: 'En cours', termine: 'Terminé'
 const CHAMPS_FICHE = [
   ['nom', 'Nom et prénom'], ['entreprise', 'Entreprise'], ['telephone', 'Téléphone'],
   ['adresse', 'Adresse'], ['siret', 'SIRET', 'Si vous êtes une entreprise'],
-  ['nom_de_domaine', 'Nom de domaine', 'Ex. : monentreprise.fr. Il reste à vous.'],
-  ['registrar', 'Domaine enregistré chez', 'OVH, Gandi, IONOS…'], ['reseaux_sociaux', 'Réseaux sociaux', 'Liens Instagram, Facebook…'],
+  ['reseaux_sociaux', 'Réseaux sociaux', 'Liens Instagram, Facebook…'],
 ];
 const FICHE_ESSENTIEL = ['nom', 'telephone', 'adresse'];
 const REVUE = ['video', 'maquette', 'script'];
@@ -113,7 +112,7 @@ async function demarrer(session) {
 function router() {
   window.scrollTo(0, 0);
   menu();
-  document.body.classList.toggle('sombre', /\/revue\//.test(location.hash));
+  document.body.classList.add('sombre');
   const pt = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
   if (pt) return renderPartage(pt[1]);
   const lv = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/livraison$/);
@@ -419,18 +418,20 @@ async function renderProjet(id, onglet) {
   const attendReponse = dernier && dernier.par_admin !== admin;
   const lancementVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
   const onglets = [
-    ['avancement', 'Avancement'],
+    ['avancement', 'Projet'],
     ['messages', 'Messages', messages?.length, attendReponse],
     ['fichiers', 'Fichiers', fichiers?.length, admin && (retours ?? []).some((r) => !r.traite)],
-    ['lancement', 'Fiche de préparation', null, lancementVide && e?.numero >= 3],
+    ...(admin ? [] : [['lancement', 'Fiche de préparation', null, lancementVide && e?.numero >= 3]]),
   ];
-  const actif = onglets.some(([k]) => k === onglet) ? onglet : 'avancement';
+  // Réglages et fiche de préparation : accessibles, mais hors des onglets pour garder l'écran simple.
+  const actif = onglets.some(([k]) => k === onglet) || (admin && ['reglages', 'lancement'].includes(onglet)) ? onglet : 'avancement';
   const nomClient = p.clients?.nom || p.clients?.email || 'Client';
 
   app.innerHTML = `
     <a class="back" href="#/projets">← Projets</a>
     <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ` · <a href="#/client/${p.client_id}">${esc(nomClient)}${p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : ''}</a>` : ''}</p>
-    <h1 class="h-l">${esc(p.titre)}</h1>
+    <div class="hello"><h1 class="h-l">${esc(p.titre)}</h1>
+      ${admin ? `<span class="liens-sec"><a class="btn-txt" href="#/projet/${id}/lancement">Réponses du client${lancementVide ? '' : ' ✓'}</a><a class="btn-txt" href="#/projet/${id}/reglages">Réglages</a></span>` : ''}</div>
 
     ${(fichiers ?? []).some((f) => f.livrable) ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
       <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">${admin ? 'Voir la page client' : 'Découvrir'} →</span></a>` : ''}
@@ -462,25 +463,20 @@ async function renderProjet(id, onglet) {
       </div>
       ${!admin && p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<div class="rdv"><p class="label bronze">Prochain rendez-vous</p>
         <p class="h-m">${esc(p.prochain_rdv_note || 'On se retrouve')} <em>${esc(jourFr(p.prochain_rdv))}</em></p></div>` : ''}
-      <div class="section" style="margin-top:40px">
-        <p class="label">Les 7 étapes${admin ? ' · « Passer ici » déplace le projet, les dates se règlent dessous' : ''}</p>
+      ${admin ? `<div class="actions-rapides">
+        <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="ajout">+ Déposer une version</a>
+        <a class="btn btn-line" href="#/projet/${id}/messages">Écrire au client</a>
+        <a class="btn-txt" href="#/client/${p.client_id}" data-libre>Fiche de ${esc(nomClient)}</a>
+      </div>
+      <p class="muted small" style="margin-top:18px">Préparation côté client : ${coches.size} / ${svc.guide.length} point${svc.guide.length > 1 ? 's' : ''} coché${coches.size > 1 ? 's' : ''}${lancementVide ? ', fiche pas encore remplie' : ', fiche remplie'}.</p>` : ''}
+    </section>
+
+    ${admin ? `<section class="panel" data-panel="reglages">
+      <a class="btn-txt" href="#/projet/${id}/avancement">← Retour au projet</a>
+      <div class="section" style="margin-top:18px">
+        <p class="label">Étapes et dates · « Passer ici » déplace le projet</p>
         ${parcoursHtml(p, admin)}
       </div>
-      <div class="section guide-wrap">
-        <div>
-          <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Votre guide de préparation'}</p>
-          <p class="panel-intro">${admin ? 'Ce que le client coche de son côté.' : 'Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.'}</p>
-          <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''} ${admin ? 'disabled' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
-          <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
-        </div>
-        <div>
-          <p class="label">Votre équipe</p>
-          ${equipeHtml(svc.equipe)}
-        </div>
-      </div>
-      ${admin && p.clients ? `<div class="section"><p class="label">Contact</p>
-        <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p>
-        <div class="form-foot"><button class="btn btn-line btn-sm" id="exporter">Exporter le dossier du client</button></div></div>
       <div class="section"><p class="label">Mot de l’équipe pour la livraison</p>
         <form id="mot-livraison"><textarea name="mot" rows="3" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
         <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
@@ -494,8 +490,8 @@ async function renderProjet(id, onglet) {
       <div class="section"><p class="label">Prestation</p>
         <select id="changer-type" style="max-width:420px">${Object.entries(SERVICES).map(([k, v]) =>
           `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
-        <p class="muted small" style="margin-top:6px">Change les noms des étapes et la fiche de préparation de ce projet.</p></div>` : ''}
-    </section>
+        <p class="muted small" style="margin-top:6px">Change les noms des étapes et la fiche de préparation de ce projet.</p></div>
+    </section>` : ''}
 
     <section class="panel" data-panel="messages">
       <p class="panel-intro">${admin ? 'Échanges avec le client sur ce projet.' : 'Posez vos questions et donnez vos retours ici. Réponse sous 24 h ouvrées.'}</p>
@@ -535,7 +531,7 @@ async function renderProjet(id, onglet) {
           <div><label for="f_cat">Type</label><select id="f_cat" name="categorie">
             ${Object.entries(CATEGORIES).filter(([v]) => v !== 'script').map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></div>
           <div class="full"><label for="f_url">Lien<span class="hint">Vidéo : Vimeo, YouTube non répertorié ou MP4. Photos : lien de la galerie Pic-Time. Même nom qu’une vidéo existante = nouvelle version (V2, V3…).</span></label>
-            <input id="f_url" name="url" type="url" required placeholder="https://vimeo.com/… ou https://….pic-time.com/…"></div>
+            <input id="f_url" name="url" required placeholder="https://vimeo.com/…, code d’intégration Vimeo ou https://….pic-time.com/…"></div>
           <div class="full form-foot"><button class="btn">Ajouter</button></div>
         </form>
       </details>
@@ -551,6 +547,7 @@ async function renderProjet(id, onglet) {
     </section>
 
     <section class="panel" data-panel="lancement">
+      ${admin ? `<p style="margin-bottom:14px"><a class="btn-txt" href="#/projet/${id}/avancement">← Retour au projet</a></p>` : ''}
       <p class="panel-intro">Tout ce qu’il nous faut pour préparer ${svc.cible === 'particulier' ? 'ce grand moment' : 'le tournage'}. Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
       ${formHtml('lancement', svc.fiche, reponses)}
     </section>`;
@@ -565,6 +562,7 @@ async function renderProjet(id, onglet) {
   app.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => montrer(b.dataset.tab)));
   app.querySelectorAll(`a[href^="#/projet/${id}/"]`).forEach((a) => (a.onclick = (ev) => {
     ev.preventDefault(); montrer(a.getAttribute('href').split('/').pop());
+    if (a.dataset.ouvrir) { const d = app.querySelector('[data-panel="fichiers"] details.ajout'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }
   }));
   montrer(actif);
 
@@ -621,7 +619,8 @@ async function renderProjet(id, onglet) {
 
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
     ev.preventDefault();
-    const { titre, url, categorie } = Object.fromEntries(new FormData(ev.target));
+    const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
+    const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
     if (error) return alert(error.message);
     renderProjet(id, 'fichiers');
@@ -706,12 +705,14 @@ async function renderProjetClient(id, ancre) {
   const coches = new Set(reponses._guide ?? []);
   const ficheUtile = !(svc.masquer ?? []).includes(3);
   const ficheVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
+  // La préparation ne s'affiche qu'avant et pendant le tournage (étapes 2 à 4).
+  const prepUtile = !fini && (e?.numero ?? 1) >= 2 && (e?.numero ?? 1) <= 4;
 
   // Action principale : ce qui débloque le projet maintenant.
   const cta = aValider[0]
     ? { href: `#/projet/${id}/revue/${aValider[0].f.id}`, txt: aValider[0].f.categorie === 'script' ? 'Lire le script' : `Regarder la V${aValider[0].v}` }
     : livres.length ? { href: `#/projet/${id}/livraison`, txt: 'Découvrir votre livraison' }
-    : ficheUtile && ficheVide && (e?.numero ?? 0) >= 3 ? { href: '#preparation', txt: 'Remplir la fiche' } : null;
+    : prepUtile && ficheUtile && ficheVide && (e?.numero ?? 0) >= 3 ? { href: '#preparation', txt: 'Remplir la fiche' } : null;
   const titreEtat = fini ? 'Projet terminé, merci !'
     : aValider[0] ? (aValider[0].f.categorie === 'script' ? 'Votre script vous attend' : 'Une nouvelle version vous attend')
     : livres.length ? svc.livraison : info.titre;
@@ -756,6 +757,9 @@ async function renderProjetClient(id, ancre) {
       return `<li class="${cls}"><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t">${esc(svc.etapes[x.numero]?.titre)}</span><span class="d">${esc(quand)}</span></li>`;
     }).join('')}</ol>
 
+    ${livres.length ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
+      <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">Découvrir →</span></a>` : ''}
+
     ${pieces.length ? `<section class="section">
       <p class="label">À regarder, lire et valider</p>
       <div class="pieces">${pieces.map(({ f, v, etat }) => `
@@ -767,30 +771,27 @@ async function renderProjetClient(id, ancre) {
         </a>`).join('')}</div>
     </section>` : ''}
 
-    ${galeries.length ? `<section class="section">
-      <p class="label">Vos galeries photo</p>
-      <div class="galeries">${galeries.map((g) => `
-        <a class="galerie-carte" href="${esc(g.url)}" target="_blank" rel="noopener">
-          <span class="label bronze">Galerie privée</span>
-          <strong>${esc(g.titre)}</strong>
-          <span class="sub">Regardez, mettez vos préférées en favori et téléchargez en haute définition.</span>
-          <span class="go">Ouvrir la galerie ↗</span>
-        </a>`).join('')}</div>
+    ${prepUtile ? `    <section class="section" id="preparation">
+      <div>
+        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour le jour du tournage'}</p>
+        <p class="panel-intro">Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.</p>
+        <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
+        <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
+        ${ficheUtile ? `<details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
+          <summary class="btn btn-line btn-sm">${ficheVide ? 'Remplir la fiche de préparation' : 'Revoir la fiche de préparation'}</summary>
+          <p class="panel-intro" style="margin-top:16px">Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
+          ${formHtml('lancement', svc.fiche, reponses)}
+        </details>` : ''}
+      </div>
     </section>` : ''}
 
-    ${livres.length ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
-      <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">Découvrir →</span></a>` : ''}
-
-    <div class="pj-grille">
-      <section class="section" id="carnet">
-        <p class="label">Le carnet du projet</p>
-        <p class="panel-intro">Tout ce qui avance, au moment où ça avance.</p>
-        <ol class="carnet">${carnet.map((x) => `<li><time>${dateFr(x.d)}</time><span>${x.txt}</span></li>`).join('')
-          || '<li><span class="empty">Le carnet se remplit dès le lancement.</span></li>'}</ol>
-      </section>
-
-      <section class="section" id="messages">
-        <p class="label">Échanges</p>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="messages">Échanges${(messages ?? []).length ? `<span class="count">${messages.length}</span>` : ''}</button>
+      <button role="tab" data-tab="fichiers">Fichiers & galeries${galeries.length + autres.length ? `<span class="count">${galeries.length + autres.length}</span>` : ''}</button>
+      <button role="tab" data-tab="carnet">Historique</button>
+    </nav>
+    <div class="panel" data-panel="messages">
+      <section id="messages">
         <p class="panel-intro">Une question, une idée ? Écrivez-nous ici. Réponse sous 24 h ouvrées.</p>
         <div class="fil">${(messages ?? []).map((m) => `<div class="bulle ${m.par_admin ? '' : 'moi'}">
             <div class="qui"><b>${m.par_admin ? 'Mackerprod' : 'Vous'}</b> · ${dateFr(m.created_at)}</div>
@@ -804,27 +805,18 @@ async function renderProjetClient(id, ancre) {
         </form>
       </section>
     </div>
-
-    <section class="section guide-wrap" id="preparation">
-      <div>
-        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour le jour du tournage'}</p>
-        <p class="panel-intro">Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.</p>
-        <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
-        <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
-        ${ficheUtile ? `<details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
-          <summary class="btn btn-line btn-sm">${ficheVide ? 'Remplir la fiche de préparation' : 'Revoir la fiche de préparation'}</summary>
-          <p class="panel-intro" style="margin-top:16px">Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
-          ${formHtml('lancement', svc.fiche, reponses)}
-        </details>` : ''}
-      </div>
-      <div>
-        <p class="label">Votre équipe</p>
-        ${equipeHtml(svc.equipe)}
-      </div>
-    </section>
-
-    <section class="section" id="fichiers">
-      <p class="label">Vos fichiers</p>
+    <div class="panel" data-panel="fichiers">
+    ${galeries.length ? `<section class="section">
+      <p class="label">Vos galeries photo</p>
+      <div class="galeries">${galeries.map((g) => `
+        <a class="galerie-carte" href="${esc(g.url)}" target="_blank" rel="noopener">
+          <span class="label bronze">Galerie privée</span>
+          <strong>${esc(g.titre)}</strong>
+          <span class="sub">Regardez, mettez vos préférées en favori et téléchargez en haute définition.</span>
+          <span class="go">Ouvrir la galerie ↗</span>
+        </a>`).join('')}</div>
+    </section>` : ''}
+    <section id="fichiers">
       <p class="panel-intro">Vos fichiers restent où vous les avez mis (Google Drive, WeTransfer…). Ici, on garde les liens pour tout retrouver.</p>
       <ul class="fichiers">${autres.map((f) => `
         <li><span class="tag">${CATEGORIES[f.categorie]}</span>
@@ -844,8 +836,23 @@ async function renderProjetClient(id, ancre) {
           <div class="full form-foot"><button class="btn">Envoyer</button></div>
         </form>
       </details>
-    </section>`;
+    </section>
+    </div>
+    <div class="panel" data-panel="carnet">
+      <section id="carnet">
+        <p class="panel-intro">Tout ce qui avance, au moment où ça avance.</p>
+        <ol class="carnet">${carnet.map((x) => `<li><time>${dateFr(x.d)}</time><span>${x.txt}</span></li>`).join('')
+          || '<li><span class="empty">Le carnet se remplit dès le lancement.</span></li>'}</ol>
+      </section>
+    </div>`;
 
+  // Onglets du bas : échanges, fichiers & galeries, historique.
+  const montrer = (k) => {
+    app.querySelectorAll('[data-panel]').forEach((x) => (x.hidden = x.dataset.panel !== k));
+    app.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === k));
+  };
+  app.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => montrer(b.dataset.tab)));
+  montrer(ancre === 'fichiers' || ancre === 'carnet' ? ancre : 'messages');
   const cible = { messages: 'messages', fichiers: 'fichiers', lancement: 'preparation', avancement: null }[ancre];
   if (cible) setTimeout(() => document.getElementById(cible)?.scrollIntoView({ block: 'start' }), 0);
   const fil = app.querySelector('.fil'); if (fil) fil.scrollTop = fil.scrollHeight;
@@ -873,7 +880,8 @@ async function renderProjetClient(id, ancre) {
   };
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
     ev.preventDefault();
-    const { titre, url, categorie } = Object.fromEntries(new FormData(ev.target));
+    const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
+    const url = nettoyerLien(brut);
     const { error } = await sb.from('fichiers').insert({ projet_id: id, titre, url, categorie });
     if (error) return alert(error.message);
     renderProjetClient(id, 'fichiers');
@@ -985,14 +993,10 @@ async function renderAdmin() {
         <h1 class="h-l">${heure < 18 ? 'Bonjour' : 'Bonsoir'}</h1></div>
       <a class="btn" href="#/clients">+ Nouveau client</a>
     </div>
-    <div class="chiffres">
-      <span><b>${prio.length}</b> chose${prio.length > 1 ? 's' : ''} à faire</span>
-      <span><b>${enCours.length}</b> projet${enCours.length > 1 ? 's' : ''} en cours</span>
-      <span><b>${semaine.length}</b> rendez-vous cette semaine</span>
-    </div>
+    ${semaine.length ? `<p class="semaine"><span class="label">Cette semaine</span>${semaine.map((a) =>
+      `<a class="puce" href="#/projet/${a.p.id}"><b>${esc(jourCourt(a.d))}</b> ${esc(a.quoi)} · ${esc(a.c.nom || a.c.email)}</a>`).join('')}</p>` : ''}
 
-    <div class="deux">
-      <section class="liste">
+      <section class="liste" style="margin-top:22px">
         <div class="liste-titre"><span class="label ${prio.length ? 'red' : ''}">À faire</span></div>
         ${prio.length ? prio.map((t) => `<div class="ligne"><span class="dot ${t.dot}"></span>
             <a href="${t.href}" style="text-decoration:none;min-width:0"><b>${esc(t.titre)}</b><small>${esc(t.sub)}</small></a>
@@ -1000,18 +1004,8 @@ async function renderAdmin() {
             ${t.demande ? `<button class="btn btn-line btn-sm" data-traitee="${t.demande}">Traitée</button>` : `<a class="btn btn-sm" href="${t.href}">${t.action}</a>`}</div>`).join('')
           : '<div class="ligne vide"><span class="dot g"></span><span><b>Tout est à jour</b><small>Aucun message, retour ou demande en attente.</small></span></div>'}
       </section>
-      <section class="liste">
-        <div class="liste-titre"><span class="label">À venir</span><span class="muted small">30 jours</span></div>
-        ${avenir.length ? avenir.slice(0, 8).map((a) => `<a class="ligne" href="#/projet/${a.p.id}" style="grid-template-columns:54px minmax(0,1fr)">
-            <span class="jour-l">${esc(jourCourt(a.d))}</span><span><b>${esc(a.quoi)}</b><small>${esc(a.c.nom || a.c.email)} · ${esc(a.p.titre)}</small></span></a>`).join('')
-          : '<div class="ligne vide"><span class="dot n"></span><span><small>Aucune date prévue. Fixez-les dans chaque projet.</small></span></div>'}
-      </section>
-    </div>
 
-    <section class="section">
-      <div class="hello" style="margin-bottom:12px"><span class="label">En production</span><a class="btn-txt" href="#/projets">Tous les projets</a></div>
-      <div class="vignettes">${enCours.slice(0, 8).map((l) => vignetteEquipe(l, fichiers)).join('') || '<p class="empty">Aucun projet en cours.</p>'}</div>
-    </section>`;
+    <p class="muted small" style="margin-top:16px">${enCours.length} projet${enCours.length > 1 ? 's' : ''} en cours · <a href="#/projets">Voir les projets</a></p>`;
 
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
     const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
@@ -1065,8 +1059,8 @@ async function renderClientsAdmin() {
       const ls = lignes.filter((l) => l.c.id === c.id);
       const alerte = ls.some((l) => l.aRepondre || l.retours);
       return `<a class="ligne cl" href="#/client/${c.id}"><span class="av">${esc(initiales(c))}</span>
-        <span><b>${esc(c.nom || c.email)}</b><small>${esc([c.entreprise, ls.map((l) => l.p.titre).join(', ')].filter(Boolean).join(' · ') || c.email)}</small></span>
-        <span class="badge ${alerte ? 'red' : 'line'}">${alerte ? 'À traiter' : `${ls.length} projet${ls.length > 1 ? 's' : ''}`}</span><span class="muted">→</span></a>`;
+        <span><b>${esc(c.nom || c.email)}</b>${c.entreprise ? `<small>${esc(c.entreprise)}</small>` : ''}</span>
+        ${alerte ? '<span class="badge red">À traiter</span>' : '<i></i>'}<span class="muted">→</span></a>`;
     }).join('') || '<div class="ligne vide"><span class="dot n"></span><span><small>Aucun client pour l’instant.</small></span></div>'}</section>`;
 
   document.getElementById('nouveau').onsubmit = async (ev) => {
@@ -1080,6 +1074,8 @@ async function renderClientsAdmin() {
 }
 
 // Fiche client (admin) : tout sur une personne, en une page ------------------------
+const estFini = (p) => (p.etapes ?? []).some((e) => e.numero === 7 && e.statut === 'termine');
+
 async function renderFicheClient(id) {
   const [{ data: c, error }, { data: note }, { data: demandes }] = await Promise.all([
     sb.from('clients').select('*, projets(*, etapes(*))').eq('id', id).single(),
@@ -1096,19 +1092,16 @@ async function renderFicheClient(id) {
     sb.from('retours').select('*').in('projet_id', ids).order('created_at', { ascending: false }).limit(30),
   ]) : [{}, {}, {}];
 
-  // Historique : tout ce qui s'est passé, le plus récent en haut.
+  // Historique des projets : une ligne par fait marquant, le plus récent en haut.
   const fil = [
-    ...(messages ?? []).map((m) => ({ d: m.created_at, tag: 'Message', qui: m.par_admin ? 'Mackerprod' : 'Client', txt: m.contenu, href: `#/projet/${m.projet_id}/messages`, pid: m.projet_id })),
-    // Fichiers ajoutés ensemble (même projet, même heure) : une seule ligne.
-    ...Object.values((fichiers ?? []).reduce((g, f) => {
-      const k = `${f.projet_id}|${f.livrable}|${f.par_admin}|${f.created_at.slice(0, 13)}`;
-      (g[k] ??= []).push(f);
-      return g;
-    }, {})).map((fs) => ({ d: fs[0].created_at, tag: fs[0].livrable ? 'Livraison' : 'Fichier', qui: fs[0].par_admin ? 'Mackerprod' : 'Client',
-      txt: fs.length > 1 ? `${fs.length} fichiers : ${fs.map((f) => f.titre).join(', ')}` : fs[0].titre,
-      href: fs[0].livrable ? `#/projet/${fs[0].projet_id}/livraison` : `#/projet/${fs[0].projet_id}/fichiers`, pid: fs[0].projet_id })),
-    ...(retours ?? []).filter((r) => !r.par_admin).map((r) => ({ d: r.created_at, tag: r.type === 'validation' ? 'Validation' : 'Retour', qui: 'Client', txt: r.type === 'validation' ? 'Version validée' : r.contenu, href: `#/projet/${r.projet_id}/revue/${r.fichier_id}`, pid: r.projet_id })),
-    ...(demandes ?? []).map((x) => ({ d: x.created_at, tag: DEMANDES[x.type], qui: 'Client', txt: [x.details?.nom, x.details?.message].filter(Boolean).join(' · '), href: '', pid: x.projet_id })),
+    ...projets.map((p) => ({ d: p.created_at, txt: 'Projet ouvert', href: `#/projet/${p.id}`, pid: p.id })),
+    ...projets.flatMap((p) => (p.etapes ?? []).filter((e) => e.statut === 'termine' && e.updated_at && !(serviceDe(p).masquer ?? []).includes(e.numero)).map((e) => ({
+      d: e.updated_at, txt: `${serviceDe(p).etapes[e.numero]?.titre ?? 'Étape'} : étape terminée`, href: `#/projet/${p.id}`, pid: p.id }))),
+    ...groupesVersions((fichiers ?? []).slice().reverse()).flatMap((vs) => vs.filter((f) => f.par_admin).map((f) => ({
+      d: f.created_at, txt: `${f.titre} · V${vs.indexOf(f) + 1} envoyée`, href: `#/projet/${f.projet_id}/revue/${f.id}`, pid: f.projet_id }))),
+    ...(retours ?? []).filter((r) => r.type === 'validation').map((r) => ({ d: r.created_at,
+      txt: `${(fichiers ?? []).find((f) => f.id === r.fichier_id)?.titre ?? 'Version'} : validé par le client`, href: `#/projet/${r.projet_id}/revue/${r.fichier_id}`, pid: r.projet_id })),
+    ...(fichiers ?? []).filter((f) => f.livrable).slice(0, 1).map((f) => ({ d: f.created_at, txt: 'Livraison envoyée', href: `#/projet/${f.projet_id}/livraison`, pid: f.projet_id })),
   ].sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 25);
   const depuis = new Date(c.created_at || Date.now()).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
@@ -1131,13 +1124,15 @@ async function renderFicheClient(id) {
     <div class="fiche-grille">
       <div>
         <section class="section">
-          <p class="label">Projets</p>
-          <div class="projets">${projets.map((p) => `
+          <p class="label">Projets en cours</p>
+          <div class="projets">${projets.filter((p) => !estFini(p)).map((p) => `
             <a class="projet" href="#/projet/${p.id}">
               <div class="projet-top"><div><p class="label bronze">${esc(serviceDe(p).label)}</p><h2 class="h-m">${esc(p.titre)}</h2></div><span class="ouvrir">Ouvrir →</span></div>
-              ${parcoursHtml(p)}
-            </a>`).join('') || '<p class="empty">Aucun projet.</p>'}
+              <div class="parcours-court">${parcoursHtml(p)}</div>
+              <p class="etat-court">${(() => { const e = etapeCourante(p.etapes); return e ? `${e.statut === 'termine' ? 'Terminé' : 'En cours'} : ${esc(serviceDe(p).etapes[e.numero]?.titre ?? '')}` : ''; })()}</p>
+            </a>`).join('') || '<p class="empty">Aucun projet en cours.</p>'}
           </div>
+          ${projets.some(estFini) ? `<p class="muted small" style="margin-top:12px">Terminés : ${projets.filter(estFini).map((p) => `<a href="#/projet/${p.id}">${esc(p.titre)}</a>`).join(' · ')}</p>` : ''}
           <details class="ajout">
             <summary class="btn btn-line btn-sm">+ Nouveau projet</summary>
             <form id="ajout-projet" class="card grid">
@@ -1149,23 +1144,23 @@ async function renderFicheClient(id) {
         </section>
 
         <section class="section">
-          <p class="label">Historique</p>
-          <ol class="historique">${fil.map((h) => `<li>
-            <span class="quand">${dateFr(h.d)}</span>
-            <div><span class="tag">${esc(h.tag)}</span> <b>${esc(h.qui)}</b>${h.pid ? ` <span class="muted small">· ${esc(titre(h.pid))}</span>` : ''}
-              <p>${h.href ? `<a href="${h.href}">${esc((h.txt || '').slice(0, 220))}</a>` : esc((h.txt || '').slice(0, 220))}</p></div></li>`).join('')
+          <p class="label">Historique des projets</p>
+          <ol class="histo">${fil.slice(0, 8).map((h) => `<li><time>${esc(jourCourt(h.d.slice(0, 10)))}</time>
+            <a href="${h.href}">${projets.length > 1 ? `<span class="muted">${esc(titre(h.pid))} · </span>` : ''}${esc(h.txt)}</a></li>`).join('')
             || '<li><span class="empty">Rien pour l’instant.</span></li>'}</ol>
         </section>
       </div>
 
       <aside>
         <section class="section">
-          <p class="label">Note interne</p>
+          <details class="replie">
+          <summary><span class="label">Note interne</span><span class="muted small">${esc((note?.texte || 'Aucune note').split('\n')[0].slice(0, 70))}</span></summary>
           <form id="note-interne" class="card note">
             <textarea name="texte" rows="6" placeholder="Ce qu’il faut savoir : ses préférences, comment il nous a connus, le prénom de ses enfants…">${esc(note?.texte)}</textarea>
             <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div>
             <p class="muted small">Visible uniquement par l’équipe Mackerprod.</p>
           </form>
+          </details>
         </section>
         ${(demandes ?? []).length ? `<section class="section">
           <p class="label">Demandes</p>
@@ -1174,9 +1169,10 @@ async function renderFicheClient(id) {
             ${x.traitee ? '<span class="badge ok">Traitée</span>' : `<button class="btn btn-line btn-sm" data-traitee="${x.id}">Traitée</button>`}</li>`).join('')}</ul>
         </section>` : ''}
         <section class="section">
-          <p class="label">Coordonnées</p>
-          <p class="small"><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></p>
+          <details class="replie">
+          <summary><span class="label">Coordonnées</span><span class="muted small">${esc(c.email)}${c.telephone ? ' · ' + esc(c.telephone) : ''}</span></summary>
           ${formHtml('fiche', CHAMPS_FICHE, c, ['notes', 'Remarques du client'])}
+          </details>
         </section>
       </aside>
     </div>`;
@@ -1211,9 +1207,11 @@ const lireTemps = (txt) => {
   return p.reduce((acc, n) => acc * 60 + n, 0);
 };
 const chargerScript = (src) => new Promise((ok, ko) => {
-  if (document.querySelector(`script[src="${src}"]`)) return ok();
+  if (document.querySelector(`script[data-ok][src="${src}"]`)) return ok();
   const s = document.createElement('script');
-  s.src = src; s.onload = ok; s.onerror = ko;
+  s.src = src;
+  s.onload = () => { s.dataset.ok = '1'; ok(); };
+  s.onerror = () => { s.remove(); ko(new Error('script')); };
   document.head.appendChild(s);
 });
 
@@ -1221,15 +1219,19 @@ const chargerScript = (src) => new Promise((ok, ko) => {
 function analyserLien(url, categorie) {
   let m;
   if ((m = url.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/))) return { type: 'youtube', id: m[1] };
-  if ((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/([\da-f]+))?/))) return { type: 'vimeo', id: m[1], hash: m[2] };
+  if ((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)(?:\/([\da-f]+))?/))) return { type: 'vimeo', id: m[1], hash: m[2] || url.match(/[?&]h=([\da-f]+)/)?.[1] };
   if ((m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([\w-]+)/))) return { type: categorie === 'video' ? 'drive' : 'drive-image', id: m[1] };
   if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url)) return { type: 'video' };
   if (/\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(url)) return { type: 'image' };
   return { type: 'lien' };
 }
 
+// Un code d'intégration collé (<iframe src="…">) devient son lien.
+const nettoyerLien = (v) => (v || '').match(/src=["']([^"']+)["']/)?.[1] || (v || '').trim();
+
 // Lecteur commun : temps(), duree(), enPause() renvoient des promesses ; seek(s, lire) s'y place.
-// YouTube et MP4 n'affichent pas leurs propres contrôles : la barre Mackerprod les remplace.
+// YouTube, Vimeo et MP4 n'affichent pas leurs propres contrôles : la barre Mackerprod les remplace
+// (pour Vimeo, il faut un abonnement payant ; sans lui, Vimeo garde ses boutons).
 async function monterLecteur(zone, lien, url, { barre = false } = {}) {
   const vide = { getTime: async () => null, duree: async () => null, enPause: async () => true, seek: () => {}, play: () => {}, pause: () => {}, auto: false };
   if (lien.type === 'youtube') {
@@ -1251,13 +1253,21 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
     };
   }
   if (lien.type === 'vimeo') {
-    zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}?${lien.hash ? `h=${lien.hash}&` : ''}title=0&byline=0&portrait=0&color=941e28" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
-    await chargerScript('https://player.vimeo.com/api/player.js');
+    zone.innerHTML = `<div class="ratio"><iframe src="https://player.vimeo.com/video/${lien.id}?${lien.hash ? `h=${lien.hash}&` : ''}title=0&byline=0&portrait=0&color=941e28${barre ? '&controls=0&keyboard=0' : ''}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div>`;
+    // Si le pilote Vimeo ne charge pas (réseau, bloqueur), on garde le lecteur Vimeo avec ses propres boutons.
+    try {
+      await chargerScript('https://player.vimeo.com/api/player.js');
+      if (!window.Vimeo?.Player) throw new Error('Vimeo');
+    } catch {
+      const fr = zone.querySelector('iframe');
+      fr.src = fr.src.replace('&controls=0&keyboard=0', '');
+      return { ...vide, propre: false };
+    }
     const player = new Vimeo.Player(zone.querySelector('iframe'));
     return {
       getTime: () => player.getCurrentTime(), duree: () => player.getDuration(), enPause: () => player.getPaused(),
       seek: (s, lire = true) => { player.setCurrentTime(s); if (lire) player.play(); },
-      play: () => player.play(), pause: () => player.pause(), auto: true,
+      play: () => player.play(), pause: () => player.pause(), auto: true, propre: barre,
     };
   }
   if (lien.type === 'video') {
@@ -1396,7 +1406,7 @@ async function renderRevue(projetId, fichierId) {
           <form id="form-version" class="card">
             ${estScript
               ? `<label for="v_texte">Script</label><textarea id="v_texte" name="texte" rows="12" required>${esc(f.texte)}</textarea>`
-              : `<label for="v_url">Lien de la nouvelle version</label><input id="v_url" name="url" type="url" required placeholder="https://vimeo.com/…">`}
+              : `<label for="v_url">Lien de la nouvelle version</label><input id="v_url" name="url" required placeholder="Lien ou code d’intégration Vimeo">`}
             <label for="v_note">Ce qui a changé<span class="hint">Le client le lit en haut de la nouvelle version</span></label>
             <textarea id="v_note" name="note_version" rows="2" placeholder="Plan de la cuisine rallongé, musique baissée…"></textarea>
             <div class="form-foot"><button class="btn btn-sm">Déposer et prévenir le client</button></div>
@@ -1570,7 +1580,7 @@ async function renderRevue(projetId, fichierId) {
     const d = Object.fromEntries(new FormData(formVersion));
     const { data: nv, error } = await sb.from('fichiers').insert({
       projet_id: projetId, titre: f.titre, categorie: f.categorie,
-      url: d.url || null, texte: d.texte || null, note_version: d.note_version?.trim() || null,
+      url: nettoyerLien(d.url) || null, texte: d.texte || null, note_version: d.note_version?.trim() || null,
     }).select('id').single();
     if (error) return alert(error.message);
     location.hash = `#/projet/${projetId}/revue/${nv.id}`;
