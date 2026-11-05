@@ -173,6 +173,7 @@ async function demarrer(session) {
 
 function router() {
   window.scrollTo(0, 0);
+  app.classList.remove('pj-sous');
   menu();
   document.body.classList.add('sombre');
   bandeauVue();
@@ -591,9 +592,25 @@ async function renderProjet(id, onglet) {
 
   app.innerHTML = `
     <a class="back" href="#/projets">← Projets</a>
-    <p class="label rule" style="margin-top:28px">${esc(svc.label)}${admin ? ` · <a href="#/client/${p.client_id}">${esc(nomClient)}${p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : ''}</a>` : ''}</p>
-    <div class="hello"><h1 class="h-l">${esc(p.titre)}</h1>
-      ${admin ? `<span class="liens-sec"><a class="btn btn-line btn-sm" href="#/projet/${id}/lancement"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l2 2v14H6V6zM9 10h6M9 14h6M9 18h3"/></svg>Réponses du client${lancementVide ? '' : ' ✓'}</a><a class="btn btn-line btn-sm" href="#/projet/${id}/reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Réglages</a></span>` : ''}</div>
+    ${(() => { // Bannière du projet : dernière image (vidéo ou photo), sinon le dégradé de la prestation.
+      const img = (fichiers ?? []).filter((f) => f.url && ['video', 'photo'].includes(f.categorie)).map((f) => imageDe(f.url)).find(Boolean);
+      const [c1, c2] = DEGRADES[p.type] ?? DEGRADES.site_web;
+      const vis = etapesVisibles(p), rang = Math.max(0, vis.findIndex((x) => x.numero === e?.numero));
+      const finiP = e?.statut === 'termine' && e?.numero === 7;
+      return `<header class="pj-banniere" style="background:linear-gradient(150deg, ${c1}, ${c2})">
+        ${img ? `<img src="${esc(img)}" alt="" onerror="this.remove()">` : ''}
+        <div class="pj-voile"></div>
+        <div class="pj-ban-in">
+          <p class="label">${esc(svc.label)} · <a href="#/client/${p.client_id}">${esc(nomClient)}${p.clients?.entreprise ? ' · ' + esc(p.clients.entreprise) : ''}</a></p>
+          <h1 class="h-l">${esc(p.titre)}</h1>
+          <div class="pj-ban-bas">
+            <div class="pj-prog"><span>${finiP ? 'Projet terminé' : `Étape ${rang + 1} sur ${vis.length} · ${esc(info.titre ?? '')}`}</span>
+              <i><b style="width:${finiP ? 100 : progression(p)}%"></b></i></div>
+            ${admin ? `<span class="liens-sec"><a class="btn btn-verre btn-sm" href="#/projet/${id}/lancement"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8l2 2v14H6V6zM9 10h6M9 14h6M9 18h3"/></svg>Réponses du client${lancementVide ? '' : ' ✓'}</a><a class="btn btn-verre btn-sm" href="#/projet/${id}/reglages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Réglages</a></span>` : ''}
+          </div>
+        </div>
+      </header>`;
+    })()}
 
     ${(fichiers ?? []).some((f) => f.livrable) ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
       <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">${admin ? 'Voir la page client' : 'Découvrir'} →</span></a>` : ''}
@@ -604,34 +621,65 @@ async function renderProjet(id, onglet) {
     </nav>
 
     <section class="panel" data-panel="avancement">
-      <div class="focus">
-        <span class="big">${e?.numero ?? ''}</span>
-        <div>
-          <p class="label red">${e?.statut === 'termine' ? 'Projet terminé' : 'Étape en cours'}</p>
-          <h3>${esc(info.titre)}</h3>
-          <p>${esc(info.texte)}</p>
-          ${e?.date_prevue ? `<p class="quand">Prévu le ${esc(jourFr(e.date_prevue))}</p>` : ''}
-          ${admin ? (() => {
+      <div class="tdb">
+        <article class="tdb-carte tdb-etat">
+          <p class="label">Où on en est</p>
+          <div class="tdb-etape"><span class="big">${Math.max(0, etapesVisibles(p).findIndex((x) => x.numero === e?.numero)) + 1}</span>
+            <div><h3>${esc(e?.statut === 'termine' ? 'Projet terminé' : info.titre)}</h3><p>${esc(info.texte)}</p></div></div>
+          ${(() => {
             const fini = e?.statut === 'termine';
             let n = (e?.numero ?? 0) + 1;
             while ((svc.masquer ?? []).includes(n)) n++;
-            const suivante = fini ? null : n <= 7 ? svc.etapes[n]?.titre : 'Projet terminé';
-            return fini ? '<p class="quand">Toutes les étapes sont terminées.</p>' : `<div class="form-foot avancer">
-              <button class="btn" data-aller="${n}">${n <= 7 ? `Étape suivante : ${esc(suivante)} →` : 'Terminer le projet ✓'}</button>
-              <span class="muted small">Le client est prévenu par e-mail.</span></div>`;
-          })() : ''}
-          ${admin ? '' : `<p class="attendu">De votre côté : ${esc(info.attendu)}${info.onglet ? ` <a href="#/projet/${id}/${info.onglet}">C’est ici →</a>` : ''}</p>`}
-        </div>
+            const suivante = n <= 7 ? svc.etapes[n]?.titre : 'Projet terminé';
+            return fini ? '' : `<div class="form-foot avancer">
+              <button class="btn btn-sm" data-aller="${n}">${n <= 7 ? `Passer à : ${esc(suivante)} →` : 'Terminer le projet ✓'}</button>
+              <span class="muted small">Le client est prévenu.</span></div>`;
+          })()}
+          <p class="muted small tdb-prep">Préparation du client : ${coches.size} / ${svc.guide.length} point${svc.guide.length > 1 ? 's' : ''}${lancementVide ? ' · fiche pas remplie' : ' · fiche remplie ✓'}</p>
+        </article>
+
+        <article class="tdb-carte">
+          <p class="label">À traiter</p>
+          ${(() => {
+            const items = [];
+            if (attendReponse) items.push({ href: `#/projet/${id}/messages`, t: 'Répondre au client', s: `« ${esc((dernier.contenu || '').slice(0, 70))}${(dernier.contenu || '').length > 70 ? '…' : ''} »`, r: true });
+            const parFichier = new Map();
+            (retours ?? []).filter((r) => !r.traite && r.type !== 'validation').forEach((r) => parFichier.set(r.fichier_id, (parFichier.get(r.fichier_id) ?? 0) + 1));
+            parFichier.forEach((nb, fid) => { const f = (fichiers ?? []).find((x) => x.id === fid);
+              items.push({ href: `#/projet/${id}/revue/${fid}`, t: `${nb} retour${nb > 1 ? 's' : ''} sur « ${esc(f?.titre ?? 'une version')} »`, s: 'Commentaires du client à traiter', r: true }); });
+            (retours ?? []).filter((r) => r.type === 'validation' && Date.now() - new Date(r.created_at) < 7 * 864e5).forEach((r) => {
+              const f = (fichiers ?? []).find((x) => x.id === r.fichier_id);
+              items.push({ href: `#/projet/${id}/revue/${r.fichier_id}`, t: `« ${esc(f?.titre ?? 'Version')} » validé`, s: `Le ${jourCourt(r.created_at.slice(0, 10))} · à livrer`, ok: true }); });
+            if (lancementVide && (e?.numero ?? 0) >= 3 && (e?.numero ?? 0) <= 4 && !(svc.masquer ?? []).includes(3)) items.push({ href: `#/projet/${id}/messages`, t: 'Fiche de préparation vide', s: 'Relancer le client' });
+            return items.length ? `<ul class="tdb-liste">${items.map((x) => `<li><a href="${x.href}"><span class="dot ${x.r ? 'r' : x.ok ? 'ok' : 'b'}"></span><span><b>${x.t}</b><small>${x.s}</small></span><span class="go">→</span></a></li>`).join('')}</ul>`
+              : '<p class="tdb-vide">Rien à traiter ✓<small>Le client n’attend rien de vous pour l’instant.</small></p>';
+          })()}
+        </article>
+
+        <article class="tdb-carte">
+          <p class="label">Prochaines dates</p>
+          ${(() => {
+            const E = (n) => (p.etapes ?? []).find((x) => x.numero === n);
+            const dates = [
+              [E(4), svc.etapes[4]?.titre],
+              [E(5), 'Début du montage'],
+              [E(6), 'Livraison prévue'],
+            ].filter(([x]) => x?.date_prevue && x.statut !== 'termine').map(([x, t]) => ({ d: x.date_prevue, t, auto: [5, 6].includes(x.numero) && !x.date_forcee }));
+            if (p.prochain_rdv && p.prochain_rdv >= aujourdhui()) dates.push({ d: p.prochain_rdv, t: p.prochain_rdv_note || 'Rendez-vous' });
+            dates.sort((a, b) => (a.d > b.d ? 1 : -1));
+            return dates.length ? `<ul class="tdb-dates">${dates.map((x) => `<li><span class="j">${esc(jourCourt(x.d))}</span><span>${esc(x.t)}${x.auto ? ' <small>calculée</small>' : ''}</span></li>`).join('')}</ul>`
+              : `<p class="tdb-vide">Aucune date<small>Saisissez la date ${svc.cible === 'particulier' ? 'du jour J' : 'du tournage'} dans les Réglages.</small></p>`;
+          })()}
+          <a class="btn-txt" href="#/projet/${id}/reglages">Modifier le planning</a>
+        </article>
       </div>
-      ${!admin && p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<div class="rdv"><p class="label bronze">Prochain rendez-vous</p>
-        <p class="h-m">${esc(p.prochain_rdv_note || 'On se retrouve')} <em>${esc(jourFr(p.prochain_rdv))}</em></p></div>` : ''}
-      ${admin ? `<div class="actions-rapides">
+
+      <div class="actions-rapides">
         <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="video">+ Vidéo</a>
         <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="photo">+ Photos</a>
         <a class="btn btn-line" href="#/projet/${id}/messages">Écrire au client</a>
         <a class="btn-txt" href="#/client/${p.client_id}" data-libre>Fiche de ${esc(nomClient)}</a>
       </div>
-      <p class="muted small" style="margin-top:18px">Préparation côté client : ${coches.size} / ${svc.guide.length} point${svc.guide.length > 1 ? 's' : ''} coché${coches.size > 1 ? 's' : ''}${lancementVide ? ', fiche pas encore remplie' : ', fiche remplie'}.</p>` : ''}
     </section>
 
     ${admin ? `<section class="panel" data-panel="reglages">
@@ -755,12 +803,18 @@ async function renderProjet(id, onglet) {
   const montrer = (k) => {
     app.querySelectorAll('[data-panel]').forEach((s) => (s.hidden = s.dataset.panel !== k));
     app.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === k));
+    // Réglages et réponses du client : pages à part, bannière réduite et sans onglets.
+    app.classList.toggle('pj-sous', admin && ['reglages', 'lancement'].includes(k));
     history.replaceState(null, '', `#/projet/${id}/${k}`);
     if (k === 'messages') { const f = app.querySelector('.fil'); f.scrollTop = f.scrollHeight; }
   };
   app.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => montrer(b.dataset.tab)));
+  // Liens vers un panneau de cette page (Messages, Réglages…) : pas de rechargement.
+  // Les autres (revue d'une vidéo, page de livraison) naviguent normalement.
   app.querySelectorAll(`a[href^="#/projet/${id}/"]`).forEach((a) => (a.onclick = (ev) => {
-    ev.preventDefault(); montrer(a.getAttribute('href').split('/').pop());
+    const cible = a.getAttribute('href').split('/').pop();
+    if (!app.querySelector(`[data-panel="${cible}"]`)) return;
+    ev.preventDefault(); montrer(cible);
     if (a.dataset.ouvrir) { const d = app.querySelector(`[data-panel="fichiers"] details.ajout-${a.dataset.ouvrir}`); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }
   }));
   montrer(actif);
