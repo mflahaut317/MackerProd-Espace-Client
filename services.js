@@ -28,7 +28,7 @@ export const SERVICES = {
     etapes: {
       1: e('Premier échange', 'On parle de votre entreprise, de votre métier et de ce que vous voulez transmettre.', RIEN),
       2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
-      3: e('Préparation', 'Brief, script, repérage et planning du tournage.', 'Remplir la fiche de préparation.', 'lancement'),
+      3: e('Préparation', 'Brief, script, repérage et planning du tournage.', 'Lire et valider le script quand on vous l’envoie.', 'lancement'),
       4: e('Tournage', 'Captation sur place, interviews et reportage photo.', 'Prévenir les équipes et préparer les lieux.'),
       5: e('Montage', 'Montage, étalonnage et sound design. Vous commentez chaque version.', 'Regarder la version et laisser vos retours.', 'fichiers'),
       6: e('Livraison', 'Film final et déclinaisons livrés dans les formats prévus.', 'Télécharger vos fichiers.', 'fichiers'),
@@ -64,7 +64,7 @@ export const SERVICES = {
     etapes: {
       1: e('Demande', 'Vous nous présentez le bien à mettre en valeur.', RIEN),
       2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
-      3: e('Préparation du bien', 'Infos d’accès, créneau, autorisation de vol drone si besoin.', 'Remplir la fiche du bien.', 'lancement'),
+      3: e('Préparation du bien', 'Infos d’accès, créneau, autorisation de vol drone si besoin.', 'Nous confirmer l’accès au bien et le créneau.', 'lancement'),
       4: e('Tournage & photos', 'Visite filmée, drone, FPV et photos HDR sur place.', 'Rendre le bien rangé, lumineux et accessible.'),
       5: e('Montage & retouche', 'Montage rythmé et retouche des photos. Vous regardez la version et pointez ce qui ne vous plaît pas, à la seconde près.', 'Regarder la version et laisser vos retours.', 'fichiers'),
       6: e('Livraison', 'Vidéo, formats courts pour les annonces et photos HD.', 'Télécharger vos fichiers.', 'fichiers'),
@@ -99,7 +99,7 @@ export const SERVICES = {
     etapes: {
       1: e('Premier échange', 'On découvre votre activité et vos réseaux.', RIEN),
       2: e('Pack & signature', 'Vous choisissez votre pack (Découverte, Visibilité, Stabilité, Communauté) et on signe.', 'Choisir votre pack et signer.'),
-      3: e('Pré-production', 'Stratégie, scripts des vidéos face caméra et calendrier éditorial.', 'Remplir la fiche Frame².', 'lancement'),
+      3: e('Pré-production', 'Stratégie, scripts des vidéos face caméra et calendrier éditorial.', 'Valider les scripts quand on vous les envoie.', 'lancement'),
       4: e('Journée de tournage', 'Une journée sur place pour des mois de contenus.', 'Prévoir plusieurs tenues, les personnes à filmer et les lieux.'),
       5: e('Montage des contenus', 'Vidéos face caméra, ambiances et photos. Vous commentez les premières versions.', 'Regarder les contenus et laisser vos retours.', 'fichiers'),
       6: e('Livraison & calendrier', 'Contenus prêts à publier, livrés avec le calendrier éditorial.', 'Télécharger vos contenus et le calendrier.', 'fichiers'),
@@ -134,7 +134,7 @@ export const SERVICES = {
     etapes: {
       1: e('Premier échange', 'On parle de votre activité et de ce que doit faire votre site.', RIEN),
       2: e('Devis & signature', 'Vous recevez le devis, puis on le signe ensemble.', 'Relire et signer le devis.'),
-      3: e('Contenus', 'On rassemble textes, photos et accès au nom de domaine.', 'Remplir la fiche du site.', 'lancement'),
+      3: e('Contenus', 'On rassemble textes, photos et accès au nom de domaine.', 'Nous envoyer vos textes, photos et accès.', 'lancement'),
       4: e('Tournage & photos', 'On réalise les images du site si elles sont prévues.', 'Préparer les lieux et les personnes à filmer.'),
       5: e('Maquette & création', 'On construit le site. Vous commentez la maquette.', 'Relire la maquette et laisser vos retours.', 'fichiers'),
       6: e('Mise en ligne', 'Le site est publié sur votre nom de domaine, qui reste à vous.', 'Vérifier le site en ligne.'),
@@ -168,7 +168,7 @@ export const SERVICES = {
     etapes: {
       1: e('Premier échange', 'Vous nous racontez votre histoire et votre journée.', RIEN),
       2: e('Date réservée', 'Contrat et acompte : votre date est bloquée.', 'Signer le contrat et régler l’acompte.'),
-      3: e('Préparation', 'Rendez-vous de préparation, déroulé de la journée et lieux.', 'Remplir la fiche de votre mariage.', 'lancement'),
+      3: e('Préparation', 'Rendez-vous de préparation, déroulé de la journée et lieux.', 'Venir au rendez-vous de préparation.', 'lancement'),
       4: e('Le jour J', 'Deux vidéastes et une photographe à vos côtés, discrets mais toujours là.', 'Profiter, on s’occupe du reste.'),
       5: e('Montage & tri', 'Montage du film et du teaser, tri et retouche des photos. Vous les découvrez en avant-première et vous nous dites ce que vous en pensez.', 'Regarder les aperçus et laisser vos retours.', 'fichiers'),
       6: e('Livraison', 'Teaser, film complet et galerie photo.', 'Regarder, partager et télécharger vos souvenirs.', 'fichiers'),
@@ -201,7 +201,7 @@ export const SERVICES = {
     etapes: {
       1: e('Premier échange', 'Vous nous parlez de l’événement : baptême, anniversaire, EVJF, EVG…', RIEN),
       2: e('Date réservée', 'Devis signé et date bloquée.', 'Signer le devis.'),
-      3: e('Préparation', 'Programme, lieu et personnes importantes.', 'Remplir la fiche de l’événement.', 'lancement'),
+      3: e('Préparation', 'Programme, lieu et personnes importantes.', 'Nous partager le programme de la journée.', 'lancement'),
       4: e('Le jour J', 'On filme et photographie votre événement.', 'Profiter, on s’occupe du reste.'),
       5: e('Montage & tri', 'Montage du film et retouche des photos.', 'Patience : on vous prévient dès que c’est prêt.'),
       6: e('Livraison', 'Film et galerie photo.', 'Regarder, partager et télécharger vos souvenirs.', 'fichiers'),
@@ -235,7 +235,7 @@ export const SERVICES = {
     etapes: {
       1: e('Premier échange', 'Vous nous dites quelle séance vous imaginez.', RIEN),
       2: e('Réservation', 'Date et formule confirmées.', 'Confirmer la date.'),
-      3: e('Préparation', 'Lieu, tenues et ambiance de la séance.', 'Remplir la fiche de la séance.', 'lancement'),
+      3: e('Préparation', 'Lieu, tenues et ambiance de la séance.', 'Choisir vos tenues et le lieu avec Delphine.', 'lancement'),
       4: e('La séance', 'Delphine vous guide, en extérieur ou à domicile.', 'Venir comme vous êtes.'),
       5: e('Tri & retouche', 'Sélection et retouche de vos photos.', 'Patience : on vous prévient dès que c’est prêt.'),
       6: e('Livraison', 'Votre galerie en ligne.', 'Télécharger vos photos.', 'fichiers'),
