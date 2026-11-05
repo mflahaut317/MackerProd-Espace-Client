@@ -423,6 +423,7 @@ async function renderProjet(id, onglet) {
     ['messages', 'Messages', messages?.length, attendReponse],
     ['fichiers', 'Fichiers', fichiers?.length, admin && (retours ?? []).some((r) => !r.traite)],
     ['lancement', 'Fiche de préparation', null, lancementVide && e?.numero >= 3],
+    ...(admin ? [['reglages', 'Réglages']] : []),
   ];
   const actif = onglets.some(([k]) => k === onglet) ? onglet : 'avancement';
   const nomClient = p.clients?.nom || p.clients?.email || 'Client';
@@ -462,25 +463,19 @@ async function renderProjet(id, onglet) {
       </div>
       ${!admin && p.prochain_rdv && p.prochain_rdv >= aujourdhui() ? `<div class="rdv"><p class="label bronze">Prochain rendez-vous</p>
         <p class="h-m">${esc(p.prochain_rdv_note || 'On se retrouve')} <em>${esc(jourFr(p.prochain_rdv))}</em></p></div>` : ''}
-      <div class="section" style="margin-top:40px">
-        <p class="label">Les 7 étapes${admin ? ' · « Passer ici » déplace le projet, les dates se règlent dessous' : ''}</p>
+      ${admin ? `<div class="actions-rapides">
+        <a class="btn btn-line" href="#/projet/${id}/fichiers" data-ouvrir="ajout">+ Déposer une version</a>
+        <a class="btn btn-line" href="#/projet/${id}/messages">Écrire au client</a>
+        <a class="btn-txt" href="#/client/${p.client_id}" data-libre>Fiche de ${esc(nomClient)}</a>
+      </div>
+      <p class="muted small" style="margin-top:18px">Préparation côté client : ${coches.size} / ${svc.guide.length} point${svc.guide.length > 1 ? 's' : ''} coché${coches.size > 1 ? 's' : ''}${lancementVide ? ', fiche pas encore remplie' : ', fiche remplie'}.</p>` : ''}
+    </section>
+
+    ${admin ? `<section class="panel" data-panel="reglages">
+      <div class="section" style="margin-top:0">
+        <p class="label">Étapes et dates · « Passer ici » déplace le projet</p>
         ${parcoursHtml(p, admin)}
       </div>
-      <div class="section guide-wrap">
-        <div>
-          <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Votre guide de préparation'}</p>
-          <p class="panel-intro">${admin ? 'Ce que le client coche de son côté.' : 'Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.'}</p>
-          <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''} ${admin ? 'disabled' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
-          <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
-        </div>
-        <div>
-          <p class="label">Votre équipe</p>
-          ${equipeHtml(svc.equipe)}
-        </div>
-      </div>
-      ${admin && p.clients ? `<div class="section"><p class="label">Contact</p>
-        <p>${esc(nomClient)} · <a href="mailto:${esc(p.clients.email)}">${esc(p.clients.email)}</a>${p.clients.telephone ? ` · <a href="tel:${esc(p.clients.telephone)}">${esc(p.clients.telephone)}</a>` : ''}</p>
-        <div class="form-foot"><button class="btn btn-line btn-sm" id="exporter">Exporter le dossier du client</button></div></div>
       <div class="section"><p class="label">Mot de l’équipe pour la livraison</p>
         <form id="mot-livraison"><textarea name="mot" rows="3" placeholder="Merci pour votre confiance…">${esc(p.mot_livraison)}</textarea>
         <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div></form>
@@ -494,8 +489,8 @@ async function renderProjet(id, onglet) {
       <div class="section"><p class="label">Prestation</p>
         <select id="changer-type" style="max-width:420px">${Object.entries(SERVICES).map(([k, v]) =>
           `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
-        <p class="muted small" style="margin-top:6px">Change les noms des étapes et la fiche de préparation de ce projet.</p></div>` : ''}
-    </section>
+        <p class="muted small" style="margin-top:6px">Change les noms des étapes et la fiche de préparation de ce projet.</p></div>
+    </section>` : ''}
 
     <section class="panel" data-panel="messages">
       <p class="panel-intro">${admin ? 'Échanges avec le client sur ce projet.' : 'Posez vos questions et donnez vos retours ici. Réponse sous 24 h ouvrées.'}</p>
@@ -565,6 +560,7 @@ async function renderProjet(id, onglet) {
   app.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => montrer(b.dataset.tab)));
   app.querySelectorAll(`a[href^="#/projet/${id}/"]`).forEach((a) => (a.onclick = (ev) => {
     ev.preventDefault(); montrer(a.getAttribute('href').split('/').pop());
+    if (a.dataset.ouvrir) { const d = app.querySelector('[data-panel="fichiers"] details.ajout'); if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); } }
   }));
   montrer(actif);
 
@@ -706,12 +702,14 @@ async function renderProjetClient(id, ancre) {
   const coches = new Set(reponses._guide ?? []);
   const ficheUtile = !(svc.masquer ?? []).includes(3);
   const ficheVide = !svc.fiche.some(([k]) => rempli(reponses[k]));
+  // La préparation ne s'affiche qu'avant et pendant le tournage (étapes 2 à 4).
+  const prepUtile = !fini && (e?.numero ?? 1) >= 2 && (e?.numero ?? 1) <= 4;
 
   // Action principale : ce qui débloque le projet maintenant.
   const cta = aValider[0]
     ? { href: `#/projet/${id}/revue/${aValider[0].f.id}`, txt: aValider[0].f.categorie === 'script' ? 'Lire le script' : `Regarder la V${aValider[0].v}` }
     : livres.length ? { href: `#/projet/${id}/livraison`, txt: 'Découvrir votre livraison' }
-    : ficheUtile && ficheVide && (e?.numero ?? 0) >= 3 ? { href: '#preparation', txt: 'Remplir la fiche' } : null;
+    : prepUtile && ficheUtile && ficheVide && (e?.numero ?? 0) >= 3 ? { href: '#preparation', txt: 'Remplir la fiche' } : null;
   const titreEtat = fini ? 'Projet terminé, merci !'
     : aValider[0] ? (aValider[0].f.categorie === 'script' ? 'Votre script vous attend' : 'Une nouvelle version vous attend')
     : livres.length ? svc.livraison : info.titre;
@@ -756,6 +754,9 @@ async function renderProjetClient(id, ancre) {
       return `<li class="${cls}"><span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t">${esc(svc.etapes[x.numero]?.titre)}</span><span class="d">${esc(quand)}</span></li>`;
     }).join('')}</ol>
 
+    ${livres.length ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
+      <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">Découvrir →</span></a>` : ''}
+
     ${pieces.length ? `<section class="section">
       <p class="label">À regarder, lire et valider</p>
       <div class="pieces">${pieces.map(({ f, v, etat }) => `
@@ -767,30 +768,27 @@ async function renderProjetClient(id, ancre) {
         </a>`).join('')}</div>
     </section>` : ''}
 
-    ${galeries.length ? `<section class="section">
-      <p class="label">Vos galeries photo</p>
-      <div class="galeries">${galeries.map((g) => `
-        <a class="galerie-carte" href="${esc(g.url)}" target="_blank" rel="noopener">
-          <span class="label bronze">Galerie privée</span>
-          <strong>${esc(g.titre)}</strong>
-          <span class="sub">Regardez, mettez vos préférées en favori et téléchargez en haute définition.</span>
-          <span class="go">Ouvrir la galerie ↗</span>
-        </a>`).join('')}</div>
+    ${prepUtile ? `    <section class="section" id="preparation">
+      <div>
+        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour le jour du tournage'}</p>
+        <p class="panel-intro">Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.</p>
+        <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
+        <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
+        ${ficheUtile ? `<details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
+          <summary class="btn btn-line btn-sm">${ficheVide ? 'Remplir la fiche de préparation' : 'Revoir la fiche de préparation'}</summary>
+          <p class="panel-intro" style="margin-top:16px">Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
+          ${formHtml('lancement', svc.fiche, reponses)}
+        </details>` : ''}
+      </div>
     </section>` : ''}
 
-    ${livres.length ? `<a class="livraison-banniere" href="#/projet/${id}/livraison">
-      <span><span class="label bronze">Livraison</span><strong>${esc(svc.livraison)}</strong></span><span class="go">Découvrir →</span></a>` : ''}
-
-    <div class="pj-grille">
-      <section class="section" id="carnet">
-        <p class="label">Le carnet du projet</p>
-        <p class="panel-intro">Tout ce qui avance, au moment où ça avance.</p>
-        <ol class="carnet">${carnet.map((x) => `<li><time>${dateFr(x.d)}</time><span>${x.txt}</span></li>`).join('')
-          || '<li><span class="empty">Le carnet se remplit dès le lancement.</span></li>'}</ol>
-      </section>
-
-      <section class="section" id="messages">
-        <p class="label">Échanges</p>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="messages">Échanges${(messages ?? []).length ? `<span class="count">${messages.length}</span>` : ''}</button>
+      <button role="tab" data-tab="fichiers">Fichiers & galeries${galeries.length + autres.length ? `<span class="count">${galeries.length + autres.length}</span>` : ''}</button>
+      <button role="tab" data-tab="carnet">Historique</button>
+    </nav>
+    <div class="panel" data-panel="messages">
+      <section id="messages">
         <p class="panel-intro">Une question, une idée ? Écrivez-nous ici. Réponse sous 24 h ouvrées.</p>
         <div class="fil">${(messages ?? []).map((m) => `<div class="bulle ${m.par_admin ? '' : 'moi'}">
             <div class="qui"><b>${m.par_admin ? 'Mackerprod' : 'Vous'}</b> · ${dateFr(m.created_at)}</div>
@@ -804,27 +802,18 @@ async function renderProjetClient(id, ancre) {
         </form>
       </section>
     </div>
-
-    <section class="section guide-wrap" id="preparation">
-      <div>
-        <p class="label">${svc.cible === 'particulier' ? 'Pour que tout soit parfait' : 'Pour le jour du tournage'}</p>
-        <p class="panel-intro">Cochez au fur et à mesure : on voit votre avancement de notre côté aussi.</p>
-        <ul class="guide">${svc.guide.map((g, i) => `<li><label class="check"><input type="checkbox" data-guide="${i}" ${coches.has(i) ? 'checked' : ''}> <span>${esc(g)}</span></label></li>`).join('')}</ul>
-        <p class="muted small" id="guide-compte">${coches.size} / ${svc.guide.length} prêt${coches.size > 1 ? 's' : ''}</p>
-        ${ficheUtile ? `<details class="fiche-prep" ${ficheVide && (e?.numero ?? 0) >= 3 ? 'open' : ''}>
-          <summary class="btn btn-line btn-sm">${ficheVide ? 'Remplir la fiche de préparation' : 'Revoir la fiche de préparation'}</summary>
-          <p class="panel-intro" style="margin-top:16px">Vos coordonnées sont déjà enregistrées, inutile de les redonner. Vous pouvez remplir en plusieurs fois.</p>
-          ${formHtml('lancement', svc.fiche, reponses)}
-        </details>` : ''}
-      </div>
-      <div>
-        <p class="label">Votre équipe</p>
-        ${equipeHtml(svc.equipe)}
-      </div>
-    </section>
-
-    <section class="section" id="fichiers">
-      <p class="label">Vos fichiers</p>
+    <div class="panel" data-panel="fichiers">
+    ${galeries.length ? `<section class="section">
+      <p class="label">Vos galeries photo</p>
+      <div class="galeries">${galeries.map((g) => `
+        <a class="galerie-carte" href="${esc(g.url)}" target="_blank" rel="noopener">
+          <span class="label bronze">Galerie privée</span>
+          <strong>${esc(g.titre)}</strong>
+          <span class="sub">Regardez, mettez vos préférées en favori et téléchargez en haute définition.</span>
+          <span class="go">Ouvrir la galerie ↗</span>
+        </a>`).join('')}</div>
+    </section>` : ''}
+    <section id="fichiers">
       <p class="panel-intro">Vos fichiers restent où vous les avez mis (Google Drive, WeTransfer…). Ici, on garde les liens pour tout retrouver.</p>
       <ul class="fichiers">${autres.map((f) => `
         <li><span class="tag">${CATEGORIES[f.categorie]}</span>
@@ -844,8 +833,23 @@ async function renderProjetClient(id, ancre) {
           <div class="full form-foot"><button class="btn">Envoyer</button></div>
         </form>
       </details>
-    </section>`;
+    </section>
+    </div>
+    <div class="panel" data-panel="carnet">
+      <section id="carnet">
+        <p class="panel-intro">Tout ce qui avance, au moment où ça avance.</p>
+        <ol class="carnet">${carnet.map((x) => `<li><time>${dateFr(x.d)}</time><span>${x.txt}</span></li>`).join('')
+          || '<li><span class="empty">Le carnet se remplit dès le lancement.</span></li>'}</ol>
+      </section>
+    </div>`;
 
+  // Onglets du bas : échanges, fichiers & galeries, historique.
+  const montrer = (k) => {
+    app.querySelectorAll('[data-panel]').forEach((x) => (x.hidden = x.dataset.panel !== k));
+    app.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', b.dataset.tab === k));
+  };
+  app.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => montrer(b.dataset.tab)));
+  montrer(ancre === 'fichiers' || ancre === 'carnet' ? ancre : 'messages');
   const cible = { messages: 'messages', fichiers: 'fichiers', lancement: 'preparation', avancement: null }[ancre];
   if (cible) setTimeout(() => document.getElementById(cible)?.scrollIntoView({ block: 'start' }), 0);
   const fil = app.querySelector('.fil'); if (fil) fil.scrollTop = fil.scrollHeight;
@@ -985,14 +989,10 @@ async function renderAdmin() {
         <h1 class="h-l">${heure < 18 ? 'Bonjour' : 'Bonsoir'}</h1></div>
       <a class="btn" href="#/clients">+ Nouveau client</a>
     </div>
-    <div class="chiffres">
-      <span><b>${prio.length}</b> chose${prio.length > 1 ? 's' : ''} à faire</span>
-      <span><b>${enCours.length}</b> projet${enCours.length > 1 ? 's' : ''} en cours</span>
-      <span><b>${semaine.length}</b> rendez-vous cette semaine</span>
-    </div>
+    ${semaine.length ? `<p class="semaine"><span class="label">Cette semaine</span>${semaine.map((a) =>
+      `<a class="puce" href="#/projet/${a.p.id}"><b>${esc(jourCourt(a.d))}</b> ${esc(a.quoi)} · ${esc(a.c.nom || a.c.email)}</a>`).join('')}</p>` : ''}
 
-    <div class="deux">
-      <section class="liste">
+      <section class="liste" style="margin-top:22px">
         <div class="liste-titre"><span class="label ${prio.length ? 'red' : ''}">À faire</span></div>
         ${prio.length ? prio.map((t) => `<div class="ligne"><span class="dot ${t.dot}"></span>
             <a href="${t.href}" style="text-decoration:none;min-width:0"><b>${esc(t.titre)}</b><small>${esc(t.sub)}</small></a>
@@ -1000,18 +1000,8 @@ async function renderAdmin() {
             ${t.demande ? `<button class="btn btn-line btn-sm" data-traitee="${t.demande}">Traitée</button>` : `<a class="btn btn-sm" href="${t.href}">${t.action}</a>`}</div>`).join('')
           : '<div class="ligne vide"><span class="dot g"></span><span><b>Tout est à jour</b><small>Aucun message, retour ou demande en attente.</small></span></div>'}
       </section>
-      <section class="liste">
-        <div class="liste-titre"><span class="label">À venir</span><span class="muted small">30 jours</span></div>
-        ${avenir.length ? avenir.slice(0, 8).map((a) => `<a class="ligne" href="#/projet/${a.p.id}" style="grid-template-columns:54px minmax(0,1fr)">
-            <span class="jour-l">${esc(jourCourt(a.d))}</span><span><b>${esc(a.quoi)}</b><small>${esc(a.c.nom || a.c.email)} · ${esc(a.p.titre)}</small></span></a>`).join('')
-          : '<div class="ligne vide"><span class="dot n"></span><span><small>Aucune date prévue. Fixez-les dans chaque projet.</small></span></div>'}
-      </section>
-    </div>
 
-    <section class="section">
-      <div class="hello" style="margin-bottom:12px"><span class="label">En production</span><a class="btn-txt" href="#/projets">Tous les projets</a></div>
-      <div class="vignettes">${enCours.slice(0, 8).map((l) => vignetteEquipe(l, fichiers)).join('') || '<p class="empty">Aucun projet en cours.</p>'}</div>
-    </section>`;
+    <p class="muted small" style="margin-top:16px">${enCours.length} projet${enCours.length > 1 ? 's' : ''} en cours · <a href="#/projets">Voir les projets</a></p>`;
 
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
     const { error } = await sb.from('demandes').update({ traitee: true }).eq('id', b.dataset.traitee);
@@ -1160,12 +1150,14 @@ async function renderFicheClient(id) {
 
       <aside>
         <section class="section">
-          <p class="label">Note interne</p>
+          <details class="replie">
+          <summary><span class="label">Note interne</span><span class="muted small">${esc((note?.texte || 'Aucune note').split('\n')[0].slice(0, 70))}</span></summary>
           <form id="note-interne" class="card note">
             <textarea name="texte" rows="6" placeholder="Ce qu’il faut savoir : ses préférences, comment il nous a connus, le prénom de ses enfants…">${esc(note?.texte)}</textarea>
             <div class="form-foot"><button class="btn btn-line btn-sm">Enregistrer</button><span class="msg" role="status"></span></div>
             <p class="muted small">Visible uniquement par l’équipe Mackerprod.</p>
           </form>
+          </details>
         </section>
         ${(demandes ?? []).length ? `<section class="section">
           <p class="label">Demandes</p>
@@ -1174,9 +1166,10 @@ async function renderFicheClient(id) {
             ${x.traitee ? '<span class="badge ok">Traitée</span>' : `<button class="btn btn-line btn-sm" data-traitee="${x.id}">Traitée</button>`}</li>`).join('')}</ul>
         </section>` : ''}
         <section class="section">
-          <p class="label">Coordonnées</p>
-          <p class="small"><a href="mailto:${esc(c.email)}">${esc(c.email)}</a></p>
+          <details class="replie">
+          <summary><span class="label">Coordonnées</span><span class="muted small">${esc(c.email)}${c.telephone ? ' · ' + esc(c.telephone) : ''}</span></summary>
           ${formHtml('fiche', CHAMPS_FICHE, c, ['notes', 'Remarques du client'])}
+          </details>
         </section>
       </aside>
     </div>`;

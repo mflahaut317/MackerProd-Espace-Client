@@ -470,3 +470,18 @@ body:not(.sombre) .composer-at b { color: var(--red); }
 }
 @media (max-width: 420px) { .vignettes { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* Page projet équipe : les trois gestes courants, juste sous l'étape en cours. */
+.actions-rapides { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+.semaine { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.semaine .label { margin-right: 4px; }
+.puce { display: inline-flex; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); font-size: .85rem; color: var(--text-2); text-decoration: none; }
+.puce b { color: var(--bronze); font-weight: 500; }
+a.puce:hover { border-color: var(--line-2); }
+/* Blocs repliés (fiche client) : un résumé d'une ligne, le détail au clic. */
+.replie > summary { list-style: none; cursor: pointer; display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r); background: var(--card); }
+.replie > summary::-webkit-details-marker { display: none; }
+.replie > summary::after { content: "Modifier"; justify-self: start; font-size: .8rem; color: var(--bronze); text-decoration: underline; }
+.replie[open] > summary::after { content: "Replier"; }
+.replie[open] > summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.replie > form, .replie > .card { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
