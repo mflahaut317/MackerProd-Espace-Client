@@ -48,7 +48,7 @@ export const SERVICES = {
   },
 
   immobilier: {
-    montage: 2, file: 'video', // jours ouvrés de montage, file de travail (= supabase/12_planning_auto.sql)
+    montage: 3, file: 'video', prioritaire: true, // immo : passe devant dans la file (supabase/13_immo_prioritaire.sql)
     label: 'Immobilier & drone', cible: 'pro',
     masquer: [3], // pas de script ni de questionnaire : on passe de la signature au tournage
     livraison: 'Votre bien, en images',

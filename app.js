@@ -597,7 +597,7 @@ async function renderProjet(id, onglet) {
       <a class="btn-txt" href="#/projet/${id}/avancement">← Retour au projet</a>
       <div class="reglages">
         <div class="reglage">
-          <div class="reglage-tete"><h3>Planning</h3><p>Saisissez seulement la date ${svc.cible === 'particulier' ? 'du jour J ou de la séance' : 'du tournage'}. Le montage et la livraison se calculent tout seuls avec la file de montage (${svc.montage} jours ouvrés de montage, un projet à la fois). Les étapes avancent toutes seules : vidéo déposée, puis livrable coché.</p></div>
+          <div class="reglage-tete"><h3>Planning</h3><p>Saisissez seulement la date ${svc.cible === 'particulier' ? 'du jour J ou de la séance' : 'du tournage'}. Le montage et la livraison se calculent tout seuls avec la file de montage (${svc.montage} jours ouvrés de montage, un projet à la fois${svc.prioritaire ? ', l’immobilier passe devant' : ', les vidéos immo passent devant'}). Les étapes avancent toutes seules : vidéo déposée, puis livrable coché.</p></div>
           <ol class="planning">${tri(p.etapes).map((e) => {
             const auto = [5, 6].includes(e.numero), cle = e.numero === 4;
             return `
