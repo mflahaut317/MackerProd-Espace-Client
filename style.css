@@ -568,3 +568,25 @@ a.puce:hover { border-color: var(--line-2); }
   .planning .pl-n { grid-area: n; } .planning .pl-t { grid-area: t; } .planning .pl-s { grid-area: s; }
   .planning input[type="date"] { grid-area: d; } .planning .pl-a { grid-area: a; }
 }
+
+/* Menu ⋮ sur les vignettes de projet (équipe) */
+.vignette-w { position: relative; min-width: 0; }
+.vignette-w > .vignette { height: 100%; }
+.v-menu { position: absolute; top: 6px; right: 6px; z-index: 3; }
+.v-pts { width: 30px; height: 30px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(18, 22, 26, .72); color: #fff; font: 600 1.15rem/1 var(--sans); cursor: pointer; opacity: .85; transition: opacity .15s, background .15s; }
+.v-pts:hover, .v-menu[open] .v-pts { opacity: 1; background: rgba(18, 22, 26, .95); }
+.v-liste { display: none; position: absolute; right: 0; top: 36px; min-width: 190px; padding: 6px; background: var(--card); border: 1px solid var(--line-2); border-radius: var(--r-s); box-shadow: 0 10px 28px rgba(0, 0, 0, .4); }
+.v-menu[open] .v-liste { display: grid; }
+.v-liste a, .v-liste button { display: block; width: 100%; text-align: left; padding: 8px 10px; border: 0; border-radius: 4px; background: none; color: var(--fg); font: 400 .88rem var(--sans); text-decoration: none; cursor: pointer; }
+.v-liste a:hover, .v-liste button:hover { background: var(--soft); }
+.v-liste .v-danger { color: #ff7a84; }
+
+/* Fenêtre de confirmation (Valider / Annuler) */
+dialog.confirmer { width: min(460px, calc(100vw - 32px)); padding: 26px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--card); color: var(--fg); }
+dialog.confirmer::backdrop { background: rgba(0, 0, 0, .6); }
+dialog.confirmer h2 { margin-top: 6px; }
+dialog.confirmer p.muted { margin-top: 10px; font-size: .9rem; }
+dialog.confirmer .coche { display: flex; gap: 8px; align-items: center; font-weight: 400; margin-top: 16px; }
+dialog.confirmer .form-foot { justify-content: flex-end; margin-top: 22px; }
+.btn.danger-plein { background: #b3262f; }
+.btn.danger-plein:hover { background: #c92f39; }
