@@ -171,9 +171,19 @@ async function demarrer(session) {
   return router();
 }
 
+// Animation d'arrivée : posée à chaque changement de page, retirée une fois le contenu affiché
+// (pour qu'un simple rafraîchissement après une action ne rejoue pas tout).
+let finEntree;
+new MutationObserver(() => {
+  if (!app.classList.contains('entre')) return;
+  clearTimeout(finEntree);
+  finEntree = setTimeout(() => app.classList.remove('entre'), 1600);
+}).observe(app, { childList: true });
+
 function router() {
   window.scrollTo(0, 0);
   app.classList.remove('pj-sous');
+  app.classList.add('entre');
   menu();
   document.body.classList.add('sombre');
   bandeauVue();
