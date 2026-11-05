@@ -500,3 +500,13 @@ a.puce:hover { border-color: var(--line-2); }
 /* Bandeau « Voir comme le client » (équipe, lecture seule) */
 .bandeau-vue { position: sticky; top: 0; z-index: 60; display: flex; align-items: center; justify-content: center; gap: 14px; padding: 8px 16px; background: var(--red, #941e28); color: #fff; font-size: .86rem; }
 .bandeau-vue .btn { background: #fff; color: #941e28; border-color: #fff; }
+
+/* Plein écran de la salle : vidéo + barre Mackerprod */
+.ico svg { width: 20px; height: 20px; fill: none; stroke: var(--fg); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.salle-media:fullscreen { display: flex; flex-direction: column; background: #000; }
+.salle-media:fullscreen #media { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.salle-media:fullscreen .ratio { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; }
+.salle-media:fullscreen .barre { border-radius: 0; }
+.salle-media:-webkit-full-screen { display: flex; flex-direction: column; background: #000; width: 100%; height: 100%; }
+.salle-media:-webkit-full-screen #media { flex: 1; min-height: 0; display: flex; }
+.salle-media:-webkit-full-screen .ratio { width: 100%; height: 100%; aspect-ratio: auto; border-radius: 0; }
