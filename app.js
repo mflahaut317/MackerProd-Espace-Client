@@ -1299,7 +1299,8 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
       const pl = new YT.Player(zone.querySelector('.yt-cible'), {
         videoId: lien.id,
         playerVars: { rel: 0, modestbranding: 1, playsinline: 1, ...(barre ? { controls: 0, disablekb: 1, iv_load_policy: 3 } : {}) },
-        events: { onReady: () => ok(pl) },
+        // À la fin, retour au début : pas de suggestions YouTube.
+        events: { onReady: () => ok(pl), onStateChange: (e) => { if (e.data === 0) { pl.seekTo(0, true); pl.pauseVideo(); } } },
       });
     });
     return {
@@ -1321,6 +1322,8 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
       return { ...vide, propre: false };
     }
     const player = new Vimeo.Player(zone.querySelector('iframe'));
+    // À la fin, on revient au début : Vimeo n'affiche pas ses suggestions d'autres vidéos.
+    player.on('ended', () => player.setCurrentTime(0).then(() => player.pause()).catch(() => {}));
     return {
       getTime: () => player.getCurrentTime(), duree: () => player.getDuration(), enPause: () => player.getPaused(),
       seek: (s, lire = true) => { player.setCurrentTime(s); if (lire) player.play(); },
