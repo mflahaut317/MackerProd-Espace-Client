@@ -533,6 +533,9 @@ async function renderProjet(id, onglet) {
         <select id="changer-type" style="max-width:420px">${Object.entries(SERVICES).map(([k, v]) =>
           `<option value="${k}" ${k === (p.type || 'site_web') ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select>
         <p class="muted small" style="margin-top:6px">Change les noms des étapes et la fiche de préparation de ce projet.</p></div>
+      <div class="section zone-danger"><p class="label">Supprimer le projet</p>
+        <p class="muted small">Efface le projet et tout ce qu’il contient dans l’espace client : étapes, messages, fichiers, retours. Le client ne le verra plus. Irréversible.</p>
+        <button type="button" class="btn btn-line btn-sm danger" id="supprimer-projet">Supprimer « ${esc(p.titre)} »</button></div>
     </section>` : ''}
 
     <section class="panel" data-panel="messages">
@@ -659,6 +662,18 @@ async function renderProjet(id, onglet) {
     renderProjet(id, 'messages');
   };
 
+  const btnSuppr = document.getElementById('supprimer-projet');
+  if (btnSuppr) btnSuppr.onclick = async () => {
+    const saisie = prompt(`Supprimer définitivement « ${p.titre} » et tout son contenu ?\nTapez SUPPRIMER pour confirmer.`);
+    if (saisie?.trim().toUpperCase() !== 'SUPPRIMER') return;
+    // Vidéos envoyées sur Vimeo pour ce projet : proposer de les supprimer aussi.
+    const videos = [...new Set((fichiers ?? []).map((x) => x.url).filter((u) => u && /vimeo\.com\/(?:video\/)?\d+/.test(u)))];
+    const aussiVimeo = videos.length && confirm(`Supprimer aussi ${videos.length > 1 ? `les ${videos.length} vidéos` : 'la vidéo'} de ce projet sur Vimeo ?\nOK : supprimer chez Vimeo · Annuler : les garder sur Vimeo`);
+    const { error } = await sb.from('projets').delete().eq('id', id);
+    if (error) return alert(messageErreur(error));
+    if (aussiVimeo) for (const u of videos) await sb.functions.invoke('vimeo-upload', { body: { action: 'supprimer', url: u } });
+    location.hash = `#/client/${p.client_id}`;
+  };
   zoneVimeo(document.getElementById('f_url'), () => document.getElementById('f_titre').value.trim(), id);
   // La zone de dépôt Vimeo ne sert que pour une vidéo.
   const typeFichier = document.getElementById('f_cat');
