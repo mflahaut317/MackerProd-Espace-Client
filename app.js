@@ -1832,7 +1832,7 @@ async function renderRevue(projetId, fichierId) {
               <button class="ico" id="pp" type="button" aria-label="Lecture"><span class="tri"></span></button>
               <span class="tc"><span id="cur">0:00</span> / <span id="dur">–:––</span></span>
               <span class="sp"></span>
-              <button class="ico" id="plein" type="button" aria-label="Plein écran" title="Plein écran"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+              <button class="ico" id="plein" type="button" aria-label="Plein écran" title="Plein écran"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="c-hg" d="M4 9V4h5"/><path class="c-hd" d="M15 4h5v5"/><path class="c-bd" d="M20 15v5h-5"/><path class="c-bg" d="M9 20H4v-5"/></svg></button>
               <button class="btn btn-sm" id="commenter" type="button">Commenter à <span id="cur2">0:00</span></button>
             </div>
           </div>

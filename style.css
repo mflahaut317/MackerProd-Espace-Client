@@ -752,3 +752,19 @@ dialog.confirmer[open]::backdrop { animation: mk-fondu .22s ease both; }
 .survol-t { position: absolute; bottom: 26px; left: 0; transform: translateX(-50%); padding: 3px 7px; border-radius: 5px; background: rgba(10, 12, 15, .9); color: #fff; font: 500 .74rem/1.2 var(--sans); font-variant-numeric: tabular-nums; pointer-events: none; opacity: 0; transition: opacity .15s; white-space: nowrap; }
 .scrub:hover .survol-t, .scrub.glisse .survol-t { opacity: 1; }
 @media (hover: none) { .scrub:not(.glisse) .survol-t { opacity: 0; } }
+
+/* Boutons du lecteur : réaction au survol. Plein écran : les quatre coins s'écartent. */
+.ico { border-radius: 50%; transition: background .2s, transform .15s; }
+.ico:hover { background: rgba(255, 255, 255, .1); }
+.ico:active { transform: scale(.9); }
+.ico .tri, .ico .pause { transition: transform .2s cubic-bezier(.2, .7, .2, 1); }
+.ico:hover .tri, .ico:hover .pause { transform: scale(1.15); }
+#plein path { transition: transform .25s cubic-bezier(.3, 1.5, .5, 1); }
+#plein:hover .c-hg { transform: translate(-2px, -2px); }
+#plein:hover .c-hd { transform: translate(2px, -2px); }
+#plein:hover .c-bd { transform: translate(2px, 2px); }
+#plein:hover .c-bg { transform: translate(-2px, 2px); }
+.salle-media:fullscreen #plein:hover .c-hg { transform: translate(2px, 2px); }
+.salle-media:fullscreen #plein:hover .c-hd { transform: translate(-2px, 2px); }
+.salle-media:fullscreen #plein:hover .c-bd { transform: translate(-2px, -2px); }
+.salle-media:fullscreen #plein:hover .c-bg { transform: translate(2px, -2px); }
