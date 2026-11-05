@@ -3,6 +3,32 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, AVIS_GOOGLE_URL } from './config.js';
 import { SERVICES, EQUIPE, serviceDe } from './services.js';
 
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// « Voir comme le client » : l'équipe parcourt l'espace d'un client, en lecture seule.
+// Toute écriture est bloquée ici, avant d'atteindre Supabase.
+let vueClient = null;
+try { vueClient = sessionStorage.getItem('vue-client'); } catch {}
+const APERCU = 'Vous regardez l’espace comme le client : rien n’est enregistré.';
+const bloque = () => {
+  const res = { data: null, error: { message: APERCU } };
+  const q = new Proxy(() => {}, { get: (_, k) => (k === 'then' ? (ok) => ok(res) : () => q) });
+  return q;
+};
+const fromReel = sb.from.bind(sb);
+sb.from = (table) => {
+  const q = fromReel(table);
+  if (vueClient) for (const k of ['insert', 'update', 'upsert', 'delete']) q[k] = bloque;
+  return q;
+};
+const rpcReel = sb.rpc.bind(sb);
+sb.rpc = (nom, args) => (vueClient && nom !== 'livraison_publique' ? bloque() : rpcReel(nom, args));
+const estAdmin = () => profil?.role === 'admin' && !vueClient;
+const clientCourant = () => vueClient || profil?.client_id;
+function changerVue(id, retour) {
+  vueClient = id;
+  try { id ? sessionStorage.setItem('vue-client', id) : sessionStorage.removeItem('vue-client'); } catch {}
+  if (location.hash === retour) router(); else location.hash = retour;
+}
 const app = document.getElementById('app');
 const logoutBtn = document.getElementById('logout');
 const who = document.getElementById('who');
@@ -21,7 +47,7 @@ const ICONES = {
 };
 const ico = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONES[k]}</svg>`;
 function menu() {
-  const admin = profil?.role === 'admin';
+  const admin = estAdmin();
   const items = admin
     ? [['#/', 'jour', 'Aujourd’hui'], ['#/projets', 'projets', 'Projets'], ['#/clients', 'clients', 'Clients']]
     : [['#/', 'accueil', 'Accueil'], ['#/projets', 'projets', 'Mes projets'], ['#/infos', 'infos', 'Mes infos']];
@@ -94,7 +120,7 @@ window.addEventListener('hashchange', () => {
   if (partage) return renderPartage(partage[1]).catch(showError);
   if (profil) Promise.resolve(router()).catch(showError);
 });
-logoutBtn.onclick = () => sb.auth.signOut();
+logoutBtn.onclick = () => { vueClient = null; try { sessionStorage.removeItem('vue-client'); } catch {} sb.auth.signOut(); };
 
 async function demarrer(session) {
   logoutBtn.hidden = !session;
@@ -105,6 +131,7 @@ async function demarrer(session) {
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
   if (error) return showError(error);
   profil = data;
+  if (profil.role !== 'admin') vueClient = null;
   who.textContent = profil.role === 'admin' ? 'Équipe Mackerprod' : profil.email;
   return router();
 }
@@ -113,6 +140,7 @@ function router() {
   window.scrollTo(0, 0);
   menu();
   document.body.classList.add('sombre');
+  bandeauVue();
   const pt = location.hash.match(/^#\/partage\/([0-9a-f-]{36})$/);
   if (pt) return renderPartage(pt[1]);
   const lv = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/livraison$/);
@@ -120,15 +148,15 @@ function router() {
   const r = location.hash.match(/^#\/projet\/([0-9a-f-]{36})\/revue\/([0-9a-f-]{36})$/);
   if (r) return renderRevue(r[1], r[2]);
   const m = location.hash.match(/^#\/projet\/([0-9a-f-]{36})(?:\/(\w+))?$/);
-  if (m) return profil.role === 'admin' ? renderProjet(m[1], m[2]) : renderProjetClient(m[1], m[2]);
+  if (m) return estAdmin() ? renderProjet(m[1], m[2]) : renderProjetClient(m[1], m[2]);
   const fc = location.hash.match(/^#\/client\/([0-9a-f-]{36})$/);
-  if (fc && profil.role === 'admin') return renderFicheClient(fc[1]);
-  if (profil.role === 'admin') {
+  if (fc && estAdmin()) return renderFicheClient(fc[1]);
+  if (estAdmin()) {
     if (location.hash === '#/projets') return renderProjetsAdmin();
     if (location.hash === '#/clients') return renderClientsAdmin();
     return renderAdmin();
   }
-  if (!profil.client_id) {
+  if (!clientCourant()) {
     app.innerHTML = `
       <p class="label rule">Bienvenue</p>
       <h1 class="h-l">Votre espace est <em>presque prêt</em></h1>
@@ -136,9 +164,23 @@ function router() {
       Mackerprod s’en occupe sous 24 h ouvrées.</p>`;
     return;
   }
-  if (location.hash === '#/infos') return renderInfosClient(profil.client_id);
-  if (location.hash === '#/projets') return renderProjetsClient(profil.client_id);
-  return renderClient(profil.client_id);
+  if (location.hash === '#/infos') return renderInfosClient(clientCourant());
+  if (location.hash === '#/projets') return renderProjetsClient(clientCourant());
+  return renderClient(clientCourant());
+}
+
+// Bandeau en haut de page tant que l'équipe regarde l'espace d'un client.
+function bandeauVue() {
+  let b = document.getElementById('vue-client');
+  if (!(vueClient && profil?.role === 'admin')) return b?.remove();
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'vue-client';
+    b.className = 'bandeau-vue';
+    b.innerHTML = `<span>Vous voyez l’espace comme le client · lecture seule</span><button type="button" class="btn btn-sm">Quitter</button>`;
+    b.querySelector('button').onclick = () => changerVue(null, `#/client/${vueClient}`);
+    document.body.prepend(b);
+  }
 }
 
 function showError(error) {
@@ -395,7 +437,7 @@ function bindForm(id, enregistrer, apres) {
 // Page projet (client et admin) ------------------------------------------------
 
 async function renderProjet(id, onglet) {
-  const admin = profil.role === 'admin';
+  const admin = estAdmin();
   const [{ data: p, error }, { data: lancement }, { data: fichiers }, { data: messages }] = await Promise.all([
     sb.from('projets').select('*, etapes(*), clients(nom, entreprise, email, telephone)').eq('id', id).single(),
     sb.from('lancements').select('*').eq('projet_id', id).maybeSingle(),
@@ -1117,6 +1159,7 @@ async function renderFicheClient(id) {
           <a class="btn btn-sm" href="mailto:${esc(c.email)}">Écrire un e-mail</a>
           ${c.telephone ? `<a class="btn btn-line btn-sm" href="tel:${esc(c.telephone.replace(/\s/g, ''))}">Appeler · ${esc(c.telephone)}</a>` : ''}
           <button class="btn btn-line btn-sm" id="exporter">Exporter le dossier</button>
+          <button class="btn btn-line btn-sm" id="voir-client">Voir comme le client</button>
         </div>
       </div>
     </div>
@@ -1178,6 +1221,7 @@ async function renderFicheClient(id) {
     </div>`;
 
   document.getElementById('exporter').onclick = () => exporterDossier(id);
+  document.getElementById('voir-client').onclick = () => changerVue(id, '#/');
   bindForm('note-interne', ({ texte }) => sb.from('notes_internes').upsert({ client_id: id, texte }));
   bindForm('fiche', (maj) => sb.from('clients').update(maj).eq('id', id));
   app.querySelectorAll('[data-traitee]').forEach((b) => (b.onclick = async () => {
@@ -1313,7 +1357,7 @@ async function monterLecteur(zone, lien, url, { barre = false } = {}) {
 // Salle de projection : une version d'une vidéo, d'une maquette ou d'un script.
 // Vidéo : chaque retour est accroché à un instant. Maquette : à un endroit. Script : à un passage (pos_y = n° du paragraphe).
 async function renderRevue(projetId, fichierId) {
-  const admin = profil.role === 'admin';
+  const admin = estAdmin();
   const [{ data: f, error }, { data: retours }, { data: p }] = await Promise.all([
     sb.from('fichiers').select('*').eq('id', fichierId).single(),
     sb.from('retours').select('*').eq('fichier_id', fichierId).order('created_at'),
@@ -1679,7 +1723,7 @@ async function monterVideos(d) {
 }
 
 async function renderLivraison(id) {
-  const admin = profil.role === 'admin';
+  const admin = estAdmin();
   const [{ data: p, error }, { data: fichiers }] = await Promise.all([
     sb.from('projets').select('id, titre, type, mot_livraison, partage_token, partage_actif').eq('id', id).single(),
     sb.from('fichiers').select('titre, url, categorie').eq('projet_id', id).eq('livrable', true).order('created_at'),
