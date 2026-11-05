@@ -659,7 +659,7 @@ async function renderProjet(id, onglet) {
     renderProjet(id, 'messages');
   };
 
-  zoneVimeo(document.getElementById('f_url'), () => document.getElementById('f_titre').value.trim());
+  zoneVimeo(document.getElementById('f_url'), () => document.getElementById('f_titre').value.trim(), id);
   document.getElementById('nouveau-fichier').onsubmit = async (ev) => {
     ev.preventDefault();
     const { titre, url: brut, categorie } = Object.fromEntries(new FormData(ev.target));
@@ -678,9 +678,17 @@ async function renderProjet(id, onglet) {
   };
 
   app.querySelectorAll('[data-suppr]').forEach((b) => (b.onclick = async () => {
-    if (!confirm('Retirer ce lien ? Le fichier lui-même n’est pas supprimé.')) return;
+    if (!confirm('Retirer ce fichier de l’espace client ?')) return;
+    const fi = (fichiers ?? []).find((x) => x.id === b.dataset.suppr);
+    // Vidéo Vimeo : proposer de la supprimer aussi chez Vimeo (si aucune autre fiche ne l'utilise).
+    const vimeo = fi?.url && /vimeo\.com\/(?:video\/)?\d+/.test(fi.url) && !(fichiers ?? []).some((x) => x.id !== fi.id && x.url === fi.url);
+    const aussiVimeo = vimeo && confirm('Supprimer aussi la vidéo de votre compte Vimeo ?\nOK : supprimer chez Vimeo · Annuler : la garder sur Vimeo');
     const { error } = await sb.from('fichiers').delete().eq('id', b.dataset.suppr);
     if (error) return alert(messageErreur(error));
+    if (aussiVimeo) {
+      const { data, error: e2 } = await sb.functions.invoke('vimeo-upload', { body: { action: 'supprimer', url: fi.url } });
+      if (e2 || data?.error) alert(data?.error || (await e2?.context?.json?.().catch(() => null))?.error || 'Retiré du site, mais Vimeo n’a pas pu supprimer la vidéo.');
+    }
     renderProjet(id, 'fichiers');
   }));
 }
@@ -1291,7 +1299,7 @@ const mdpVideo = (url) => (url || '').match(/#mdp=([\w-]+)/)?.[1] ?? null;
 
 // Équipe : glisser un fichier vidéo l'envoie directement sur le compte Vimeo de Mackerprod
 // (via la fonction vimeo-upload), puis remplit le champ « Lien ».
-function zoneVimeo(champ, nomDuFichier) {
+function zoneVimeo(champ, nomDuFichier, projetId) {
   if (!champ) return;
   const z = document.createElement('div');
   z.className = 'depot-vimeo';
@@ -1314,7 +1322,7 @@ function zoneVimeo(champ, nomDuFichier) {
     envoi.disabled = true;
     etat.textContent = 'Préparation de l’envoi…';
     const { data, error } = await sb.functions.invoke('vimeo-upload', {
-      body: { nom: nomDuFichier() || f.name.replace(/\.[^.]+$/, ''), taille: f.size },
+      body: { nom: nomDuFichier() || f.name.replace(/\.[^.]+$/, ''), taille: f.size, projet_id: projetId },
     });
     if (error || data?.error) {
       envoi.disabled = false;
@@ -1716,7 +1724,7 @@ async function renderRevue(projetId, fichierId) {
   };
 
   const formVersion = document.getElementById('form-version');
-  if (formVersion && !estScript) zoneVimeo(document.getElementById('v_url'), () => `${f.titre} · V${versions.length + 1}`);
+  if (formVersion && !estScript) zoneVimeo(document.getElementById('v_url'), () => `${f.titre} · V${versions.length + 1}`, projetId);
   if (formVersion) formVersion.onsubmit = async (ev) => {
     ev.preventDefault();
     const d = Object.fromEntries(new FormData(formVersion));

@@ -1,9 +1,11 @@
 // Prépare l'envoi d'une vidéo sur le compte Vimeo de Mackerprod.
 // Le navigateur envoie ensuite le fichier directement à Vimeo (protocole tus) :
 // la vidéo ne transite pas par Supabase, même pour plusieurs Go.
+// Range la vidéo dans un dossier Vimeo au nom du client (créé au besoin).
+// action « supprimer » : supprime la vidéo de Vimeo quand l'équipe la retire du site.
 // Réservé à l'équipe (is_admin).
 // Secret à définir dans Supabase > Edge Functions > Secrets :
-//   VIMEO_TOKEN  jeton Vimeo « Authenticated (you) » avec Public, Private, Edit, Upload, Video Files
+//   VIMEO_TOKEN  jeton Vimeo « Authenticated (you) » avec Public, Private, Edit, Upload, Video Files, Delete, Create
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const CORS = {
@@ -40,7 +42,16 @@ Deno.serve(async (req) => {
   const { data: admin } = await sb.rpc('is_admin');
   if (admin !== true) return json({ error: 'Réservé à l’équipe Mackerprod.' }, 403);
 
-  const { nom, taille } = await req.json().catch(() => ({}));
+  const { action, nom, taille, projet_id, url } = await req.json().catch(() => ({}));
+
+  if (action === 'supprimer') {
+    const id = String(url ?? '').match(/vimeo\.com\/(?:video\/)?(\d+)/)?.[1];
+    if (!id) return json({ error: 'Ce lien n’est pas une vidéo Vimeo.' }, 400);
+    const d = await fetch(`${VIMEO}/videos/${id}`, { method: 'DELETE', headers: entetes(jeton) });
+    if (!d.ok && d.status !== 404) return json({ error: d.status === 403 ? 'La clé Vimeo n’a pas le droit Delete.' : `Vimeo a refusé la suppression (${d.status}).` }, 502);
+    return json({ ok: true });
+  }
+
   if (!Number.isFinite(taille) || taille <= 0) return json({ error: 'Taille de fichier invalide.' }, 400);
 
   const creer = (privacy: Record<string, unknown>) => fetch(`${VIMEO}/me/videos`, {
@@ -80,6 +91,24 @@ Deno.serve(async (req) => {
       },
     }),
   }).catch(() => {});
+
+  // Dossier Vimeo au nom du client, au mieux (nécessite le droit Create pour le créer).
+  if (projet_id) {
+    try {
+      const { data: p } = await sb.from('projets').select('clients(nom, entreprise, email)').eq('id', projet_id).single();
+      const c = (p as any)?.clients;
+      const dossier = String(c?.nom || c?.entreprise || c?.email || '').trim().slice(0, 128);
+      if (dossier) {
+        const liste = await fetch(`${VIMEO}/me/projects?per_page=100&fields=uri,name`, { headers: entetes(jeton) }).then((x) => x.json());
+        let uri = (liste?.data ?? []).find((f: any) => f.name === dossier)?.uri;
+        if (!uri) {
+          const cree = await fetch(`${VIMEO}/me/projects`, { method: 'POST', headers: entetes(jeton), body: JSON.stringify({ name: dossier }) });
+          if (cree.ok) uri = (await cree.json()).uri;
+        }
+        if (uri) await fetch(`${VIMEO}${uri}${v.uri}`, { method: 'PUT', headers: entetes(jeton) });
+      }
+    } catch (e) { console.error('Dossier Vimeo', e); }
+  }
 
   return json({ upload_link: v.upload.upload_link, lien: v.link, mdp });
 });
