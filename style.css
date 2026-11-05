@@ -803,3 +803,14 @@ dialog.confirmer[open]::backdrop { animation: mk-fondu .22s ease both; }
   .equipe figcaption { padding: 10px 12px; }
   .eq-bio { font-size: .8rem; margin-top: 4px; }
 }
+
+/* Onglets animés : trait rouge qui glisse d'un onglet à l'autre, survol en douceur. */
+.tabs { position: relative; }
+.tabs button { transition: color .2s, background .2s; border-radius: 8px 8px 0 0; }
+.tabs button:hover { color: var(--fg); background: var(--soft); }
+.tabs.a-trait button[aria-selected="true"] { border-bottom-color: transparent; }
+.tabs-ind { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; border-radius: 2px; background: var(--red); pointer-events: none; opacity: 0;
+  transition: transform .35s cubic-bezier(.3, .9, .3, 1), width .35s cubic-bezier(.3, .9, .3, 1), opacity .2s; }
+body.sombre .tabs-ind { background: #e2384a; }
+.tabs .count { transition: transform .2s; }
+.tabs button:hover .count { transform: scale(1.1); }
